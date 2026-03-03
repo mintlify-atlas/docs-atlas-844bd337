@@ -108,7 +108,7 @@ pub fn detect_package_manager(workdir: &Path) -> Option<PackageManager> {
         .into_iter()
         .find(|pm| workdir.join(pm.lock_file()).exists())
 }
-```
+```rust
 
 <Info>
   If multiple lock files exist (e.g., both `yarn.lock` and `package-lock.json`), `pnpm` takes priority, followed by `yarn`, then `npm`.
@@ -222,7 +222,7 @@ If the installation command fails (non-zero exit code):
 
 ```bash
 ❌ Install failed. Please run manually.
-```
+```bash
 
 The lock file hash is still updated, so you won't be repeatedly prompted. Run the install command manually to fix the issue.
 
@@ -283,7 +283,7 @@ $ gitsw feature-upgrade-deps
 added 1 package in 1s
 
 ✓ Install completed.
-```
+```rust
 
 ## Implementation in Main
 

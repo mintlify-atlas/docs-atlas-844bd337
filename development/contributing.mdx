@@ -10,7 +10,7 @@ Clone the repository and set up your development environment:
 ```bash
 git clone https://github.com/yigiterdev/git-switch.git
 cd gitsw
-```
+```bash
 
 ### Install Pre-commit Hooks
 
@@ -32,7 +32,7 @@ Build the project in debug mode:
 
 ```bash
 cargo build
-```
+```bash
 
 Build optimized release binary:
 
@@ -50,7 +50,7 @@ Execute the test suite:
 
 ```bash
 cargo test
-```
+```bash
 
 Run tests with output:
 
@@ -106,7 +106,7 @@ Tests are located in:
 
 The codebase follows a modular structure defined in `src/lib.rs:1`:
 
-```
+```bash
 src/
 ├── lib.rs         # Module declarations
 ├── main.rs        # CLI entry point and command handlers
@@ -176,7 +176,7 @@ impl GitRepo {
         Ok(())
     }
 }
-```
+```rust
 
 ### Adding State Fields
 
@@ -222,7 +222,7 @@ impl PackageManager {
     
     // Update other methods similarly
 }
-```
+```bash
 
 Update detection order in `detect_package_manager()` at `src/hooks.rs:49`.
 
@@ -240,7 +240,7 @@ Check formatting without modifying:
 
 ```bash
 cargo fmt --check
-```
+```bash
 
 ### Linting
 
@@ -254,7 +254,7 @@ Apply automatic fixes:
 
 ```bash
 cargo clippy --fix
-```
+```rust
 
 ### Error Handling
 
@@ -281,7 +281,7 @@ println!("{} Message", "info:".blue().bold());
 println!("{} Success", "done:".green().bold());
 println!("{} Warning", "warning:".yellow().bold());
 println!("{} Error", "error:".red().bold());
-```
+```rust
 
 ## Testing
 
@@ -319,7 +319,7 @@ fn test_with_git_repo() {
     let repo = Repository::init(dir.path()).unwrap();
     // Test with real repo
 }
-```
+```bash
 
 ### Manual Testing
 
@@ -335,7 +335,7 @@ Create an alias for easier testing:
 
 ```bash
 alias gitsw-dev='/path/to/gitsw/target/debug/gitsw'
-```
+```bash
 
 ## Submitting Pull Requests
 

@@ -88,7 +88,7 @@ State file location: `.git/git-switch.json`
 
 ### Branch Switch Flow
 
-```
+```bash
 main.rs:switch_branch()
   ├─> GitRepo::get_current_branch()
   ├─> StateManager::load()
@@ -135,7 +135,7 @@ State is stored as JSON in `.git/git-switch.json` with the structure:
     }
   }
 }
-```
+```bash
 
 The state manager:
 1. Loads state on startup from `.git/git-switch.json:42`

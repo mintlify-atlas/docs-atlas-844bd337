@@ -11,7 +11,7 @@ Create a new branch and switch to it:
 ```bash
 gitsw -c feature-new
 gitsw --create bugfix/auth-error
-```
+```text
 
 The new branch is created from your current HEAD position.
 
@@ -121,7 +121,7 @@ if let Some(branch_state) = state.get_branch(branch_name) {
 repo.delete_branch(branch_name)?;
 state.remove_branch(branch_name);
 state.save()?;
-```
+```bash
 
 ## Listing Branches
 
@@ -142,7 +142,7 @@ See which branches have stashed changes:
 ```bash
 gitsw -l
 gitsw --list
-```
+```text
 
 Output:
 
@@ -194,7 +194,7 @@ fn list_stashes() -> Result<()> {
         );
     }
 }
-```
+```bash
 
 ### Recent Branches
 
@@ -214,7 +214,7 @@ Recent branches:
   [2] main (2 hours ago)
   [3] feature-auth [stash] (yesterday)
   [4] bugfix/login (3 days ago)
-```
+```bash
 
 <Note>
   The `[stash]` indicator shows branches with uncommitted changes that were stashed by gitsw.
@@ -237,7 +237,7 @@ Changes: 2 modified, 1 untracked
 Stash: present
 Package manager: npm
 Tracking: origin/feature-auth
-```
+```text
 
 From `src/main.rs:110-152`:
 
@@ -280,7 +280,7 @@ $ gitsw -c feature-new
 info: Creating branch 'feature-new'...
 info: Switching to 'feature-new'...
 done: Switched to 'feature-new'
-```
+```text
 
 ```bash Delete Branch
 $ gitsw -d old-feature
@@ -293,7 +293,7 @@ $ gitsw -d feature-temp
 warning: Branch has a stash. It will be dropped.
 ? Delete branch 'feature-temp'? (y/N) y
 done: Deleted branch 'feature-temp'
-```
+```text
 
 ```bash List Stashes
 $ gitsw -l
@@ -310,7 +310,7 @@ Recent branches:
 * [1] develop [stash] (just now)
   [2] main (2 hours ago)
   [3] feature-auth [stash] (yesterday)
-```
+```text
 
 ```bash Status
 $ gitsw -s

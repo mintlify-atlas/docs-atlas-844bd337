@@ -118,7 +118,7 @@ gitsw -r
 ```
 
 Example output:
-```
+```text
 Recent branches:
 
 * [1] feature-auth (current)
@@ -138,7 +138,7 @@ gitsw -s
 ```
 
 Example output:
-```
+```text
 Branch: feature-auth
 Changes: 3 modified, 1 untracked
 Stash: present
@@ -150,7 +150,7 @@ Tracking: origin/feature-auth
 
 When you switch branches, gitsw automatically detects changes to lock files and prompts you to install dependencies:
 
-```
+```text
 info: Lock file has changed
 Run npm install? (y/n)
 ```
@@ -185,7 +185,7 @@ gitsw -l
 ```
 
 Example output:
-```
+```text
 Branches with stashed changes:
 
   feature-auth (stash present, last visited 2 hours ago)
@@ -207,11 +207,11 @@ If the branch has a stash, gitsw will warn you and ask for confirmation before d
 Now that you know the basics:
 
 <CardGroup cols={2}>
-  <Card title="View All Options" icon="terminal" href="#">
-    Run `gitsw --help` to see all available commands and options
+  <Card title="Configuration Options" icon="terminal" href="/configuration/options">
+    Explore all available command-line options and flags
   </Card>
-  <Card title="Learn Advanced Features" icon="book" href="#">
-    Explore branch management, remote tracking, and more
+  <Card title="Command Reference" icon="book" href="/reference/switch">
+    Learn about all commands and advanced features
   </Card>
 </CardGroup>
 

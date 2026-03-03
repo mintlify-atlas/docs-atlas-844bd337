@@ -11,14 +11,14 @@ The `--track` flag lets you fetch a remote branch, create a local tracking branc
 ```bash
 gitsw -t origin/feature-api
 gitsw --track origin/release-v2
-```
+```bash
 
 This is equivalent to:
 
 ```bash
 git fetch origin
 git checkout -b feature-api origin/feature-api
-```
+```text
 
 ## How It Works
 
@@ -91,7 +91,7 @@ fn track_remote(
     repo.create_tracking_branch(branch, remote_branch)?;
     switch_branch(branch, auto_stash, auto_install, false, pull)
 }
-```
+```bash
 
 ## Usage Examples
 
@@ -108,7 +108,7 @@ info: Fetching from 'origin'...
 info: Creating branch 'feature-api' tracking 'origin/feature-api'...
 info: Switching to 'feature-api'...
 done: Switched to 'feature-api'
-```
+```text
 
 ### Local Branch Already Exists
 
@@ -120,7 +120,7 @@ info: Fetching from 'origin'...
 info: Local branch 'main' already exists, switching to it
 info: Switching to 'main'...
 done: Switched to 'main'
-```
+```bash
 
 <Note>
   gitsw doesn't override existing local branches. It simply switches to them after fetching.
@@ -132,7 +132,7 @@ Combine tracking with pulling:
 
 ```bash
 gitsw -t origin/release-v2 -p
-```
+```bash
 
 This fetches, creates the tracking branch, switches to it, and pulls the latest changes.
 
@@ -159,7 +159,7 @@ let parts: Vec<&str> = remote_branch.splitn(2, '/').collect();
 if parts.len() != 2 {
     return Err(anyhow!("Invalid format. Use: origin/branch-name"));
 }
-```
+```bash
 
 <Note>
   Branch names can contain slashes (e.g., `origin/bugfix/login-error`). The `splitn(2, '/')` ensures only the first slash is used as the delimiter.
@@ -173,13 +173,13 @@ The `--track` flag works with other gitsw flags:
 
 ```bash
 gitsw -t origin/feature --no-stash
-```
+```bash
 
 ### Skip Auto-Install
 
 ```bash
 gitsw -t origin/feature --no-install
-```
+```bash
 
 ### Pull After Tracking
 
@@ -237,7 +237,7 @@ See which remote a branch is tracking:
 
 ```bash
 gitsw -s
-```
+```text
 
 Output:
 
@@ -246,7 +246,7 @@ Branch: feature-api
 Changes: clean
 Package manager: npm
 Tracking: origin/feature-api
-```
+```bash
 
 From `src/main.rs:146-149`:
 
@@ -325,21 +325,21 @@ done: Switched to 'hotfix'
 ```bash
 $ gitsw -t nonexistent/feature
 error: Remote 'nonexistent' not found
-```
+```text
 
 ### Remote Branch Doesn't Exist
 
 ```bash
 $ gitsw -t origin/nonexistent
 error: Remote branch 'origin/nonexistent' not found
-```
+```text
 
 ### Invalid Format
 
 ```bash
 $ gitsw -t just-a-branch
 error: Invalid format. Use: origin/branch-name
-```
+```text
 
 <Note>
   All the standard gitsw features (auto-stash, auto-install, conflict handling) work when tracking remote branches.

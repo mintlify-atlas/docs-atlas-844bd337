@@ -8,7 +8,7 @@ description: 'Track and switch to a remote branch'
 ```bash
 gitsw -t <REMOTE/BRANCH>
 gitsw --track <REMOTE/BRANCH> [OPTIONS]
-```
+```text
 
 <ParamField path="REMOTE/BRANCH" type="string" required>
   Remote branch reference in `remote/branch` format (e.g., `origin/feature-api`). Must contain exactly one forward slash.
@@ -86,7 +86,7 @@ info: Switching to 'develop'...
 done: Switched to 'develop'
 info: Pulling latest changes...
 done: Pull completed.
-```
+```text
 
 ### Local branch already exists
 ```bash
@@ -105,7 +105,7 @@ info: Creating branch 'feature-login' tracking 'origin/feature-login'...
 warning: Skipping stash (--no-stash), uncommitted changes may prevent switch
 info: Switching to 'feature-login'...
 done: Switched to 'feature-login'
-```
+```text
 
 ## Error Messages
 
@@ -137,7 +137,7 @@ gitsw -t fork/experimental     # Fork remote
 Verify your remotes with:
 ```bash
 git remote -v
-```
+```bash
 
 ## Branch Naming
 
@@ -169,7 +169,7 @@ gitsw -t origin/feature-auth
 ```bash
 # For forked repositories
 gitsw -t upstream/main -p
-```
+```bash
 
 ### Start work on remote feature
 ```bash
@@ -181,7 +181,7 @@ gitsw -t origin/sprint-24
 ```bash
 # GitHub/GitLab branches
 gitsw -t origin/pr-123
-```
+```bash
 
 ## Related Commands
 

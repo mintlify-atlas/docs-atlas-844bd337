@@ -7,7 +7,7 @@ description: 'Switch to a branch with automatic stash management'
 
 ```bash
 gitsw [BRANCH] [OPTIONS]
-```
+```text
 
 <ParamField path="BRANCH" type="string" optional>
   Target branch to switch to. If omitted, launches an interactive branch picker with fuzzy search.
@@ -90,7 +90,7 @@ Launches fuzzy finder to select branch from all local branches.
 ### Switch to existing branch
 ```bash
 gitsw main
-```
+```bash
 Switches to `main` branch. If uncommitted changes exist, prompts to stash.
 
 ### Create and switch to new branch
@@ -102,7 +102,7 @@ Creates `feature-login` if it doesn't exist, then switches to it.
 ### Switch and pull
 ```bash
 gitsw main -p
-```
+```bash
 Switches to `main` and pulls latest changes from remote.
 
 ### Switch without stashing
@@ -114,7 +114,7 @@ Switches to `develop` without automatically stashing changes. May fail if confli
 ### Create, switch, and pull
 ```bash
 gitsw -c -p feature-api
-```
+```bash
 Creates `feature-api`, switches to it, and pulls from remote.
 
 ### Switch without install prompt

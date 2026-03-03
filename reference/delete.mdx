@@ -8,7 +8,7 @@ description: 'Delete a branch with automatic stash cleanup'
 ```bash
 gitsw -d <BRANCH>
 gitsw --delete <BRANCH>
-```
+```text
 
 <ParamField path="BRANCH" type="string" required>
   Name of the branch to delete. Cannot be the current branch.
@@ -65,7 +65,7 @@ warning: Branch has a stash. It will be dropped.
 Are you sure you want to delete 'feature-login'? [y/N]
 y
 done: Deleted branch 'feature-login'
-```
+```text
 
 ### Abort deletion
 ```bash
@@ -137,7 +137,7 @@ Uses Git's standard branch deletion, which will fail if:
 # After merging to main
 gitsw main
 gitsw -d feature-auth
-```
+```bash
 
 ### Remove abandoned branch with stash
 ```bash
@@ -152,7 +152,7 @@ gitsw -l
 
 # Then delete
 gitsw -d branch-name
-```
+```bash
 
 ## Related Commands
 

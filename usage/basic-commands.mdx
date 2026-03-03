@@ -12,7 +12,7 @@ The most basic operation is switching to an existing branch by name:
 gitsw main
 gitsw feature-auth
 gitsw bugfix/login-error
-```
+```text
 
 If the branch doesn't exist, you'll get an error:
 
@@ -32,7 +32,7 @@ Create a new branch and switch to it in one command:
 ```bash
 gitsw -c new-feature
 gitsw -c bugfix/issue-123
-```
+```bash
 
 This is equivalent to:
 
@@ -70,7 +70,7 @@ if !branch_exists && create {
     );
     repo.create_branch(target_branch)?;
 }
-```
+```bash
 
 ## Pull After Switch
 
@@ -107,7 +107,7 @@ fn do_pull(repo: &mut GitRepo) -> Result<()> {
     }
     Ok(())
 }
-```
+```bash
 
 <Warning>
   If the pull fails (e.g., due to conflicts), the switch still completes. You'll need to resolve conflicts manually.
@@ -128,7 +128,7 @@ If you're already on the target branch, gitsw handles it gracefully:
 ```bash
 $ gitsw main
 info: Already on 'main'
-```
+```text
 
 From `src/main.rs:368-380`:
 
@@ -161,7 +161,7 @@ if current_branch == target_branch {
 $ gitsw main
 info: Switching to 'main'...
 done: Switched to 'main'
-```
+```text
 
 ```bash Create Branch
 $ gitsw -c feature-new
@@ -176,7 +176,7 @@ info: Switching to 'main'...
 done: Switched to 'main'
 info: Pulling latest changes...
 done: Pull completed.
-```
+```text
 
 ```bash With Uncommitted Changes
 $ gitsw develop
@@ -196,7 +196,7 @@ By default, gitsw prompts you to stash uncommitted changes. Skip this with:
 
 ```bash
 gitsw main --no-stash
-```
+```bash
 
 <Warning>
   Using `--no-stash` may cause the switch to fail if you have uncommitted changes that conflict with the target branch.

@@ -26,7 +26,7 @@ The `show_status` function (src/main.rs:110-152) performs the following checks:
 
 ### 1. Branch name
 Displays the current branch name in green:
-```
+```text
 Branch: {current_branch}
 ```
 
@@ -34,7 +34,7 @@ Branch: {current_branch}
 Checks for uncommitted changes using `has_uncommitted_changes()`:
 - If changes exist: Shows summary (e.g., "3 modified, 1 untracked") in yellow
 - If clean: Shows "clean" in dimmed text
-```
+```text
 Changes: {summary}
 ```
 
@@ -42,7 +42,7 @@ Changes: {summary}
 Looks up the current branch in gitsw state:
 - Verifies the stash OID exists in the Git stash list
 - Only shows if stash is actually present in Git
-```
+```text
 Stash: present
 ```
 
@@ -51,13 +51,13 @@ Detects package manager by checking for lock files:
 - `package-lock.json` → npm
 - `yarn.lock` → yarn
 - `pnpm-lock.yaml` → pnpm
-```
+```text
 Package manager: {name}
 ```
 
 ### 5. Remote tracking
 Checks if the branch is tracking a remote:
-```
+```text
 Tracking: {remote/branch}
 ```
 

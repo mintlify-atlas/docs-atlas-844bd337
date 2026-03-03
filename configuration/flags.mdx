@@ -26,7 +26,7 @@ When you use the `--no-stash` flag:
 
 ```bash
 gitsw main --no-stash
-```
+```text
 
 - Skips all stash prompts and automatic stashing
 - Attempts to switch branches with uncommitted changes in place
@@ -49,7 +49,7 @@ When you want to bring your uncommitted changes to the new branch:
 
 ```bash
 gitsw -c hotfix --no-stash  # Create hotfix with current changes
-```
+```bash
 
 **3. Automation scripts**
 
@@ -69,7 +69,7 @@ Defined in `src/main.rs:44-45`:
 /// Skip automatic stash behavior
 #[arg(long)]
 no_stash: bool,
-```
+```bash
 
 The flag is checked in `src/main.rs:389` within the `switch_branch` function:
 
@@ -100,7 +100,7 @@ When you use the `--no-install` flag:
 
 ```bash
 gitsw feature --no-install
-```
+```bash
 
 - Skips all lock file change detection
 - Never prompts to run package manager install commands
@@ -125,7 +125,7 @@ When you prefer to control when dependencies are installed:
 ```bash
 gitsw feature --no-install    # Switch first
 npm install                   # Install manually when ready
-```
+```bash
 
 **3. CI/CD environments**
 
@@ -144,7 +144,7 @@ When you're working on lock file changes and don't want automatic installs:
 ```bash
 gitsw -c fix/lock-file --no-install
 # Manually resolve lock file issues
-```
+```bash
 
 ### Supported Package Managers
 
@@ -170,7 +170,7 @@ The flag controls the `handle_package_install` function call in `src/main.rs:508
 if auto_install {
     handle_package_install(&workdir, &mut state, target_branch)?;
 }
-```
+```text
 
 ## -c, --create
 
@@ -191,7 +191,7 @@ When you use the create flag:
 
 ```bash
 gitsw -c new-feature
-```
+```bash
 
 - Checks if the branch exists
 - If not, creates the branch from the current HEAD
@@ -211,7 +211,7 @@ gitsw -c feature/user-auth    # Create feature branch
 ```bash
 gitsw main -p                 # Switch to main and pull
 gitsw -c hotfix/critical-bug  # Create hotfix from latest main
-```
+```bash
 
 **3. Branching from current work**
 
@@ -228,7 +228,7 @@ Defined in `src/main.rs:51-53`:
 /// Create branch if it doesn't exist
 #[arg(short = 'c', long)]
 create: bool,
-```
+```rust
 
 Used in `src/main.rs:357-363`:
 
@@ -252,7 +252,7 @@ By default, gitsw only switches branches without fetching or pulling:
 
 ```bash
 gitsw main    # Switches to main but doesn't pull
-```
+```bash
 
 ### With -p/--pull
 
@@ -281,7 +281,7 @@ gitsw main -p
 ```bash
 gitsw main -p              # Get latest main
 gitsw develop -p           # Get latest develop
-```
+```bash
 
 **2. Syncing feature branches**
 
@@ -293,7 +293,7 @@ gitsw feature-api -p       # Get latest from remote feature branch
 
 ```bash
 gitsw -t origin/release -p    # Track and pull in one command
-```
+```text
 
 **4. Already on branch but need to pull**
 
@@ -312,7 +312,7 @@ Defined in `src/main.rs:55-57`:
 /// Pull latest changes after switching
 #[arg(short = 'p', long)]
 pull: bool,
-```
+```bash
 
 Used in `src/main.rs:502-505`:
 
@@ -338,7 +338,7 @@ gitsw -t origin/staging -p
 
 # Create and pull (creates branch first, then attempts pull)
 gitsw -c feature -p
-```
+```bash
 
 ### Order of Operations
 
@@ -367,7 +367,7 @@ Disable interactive features:
 
 ```bash
 gitsw production --no-stash --no-install
-```
+```bash
 
 ### For Quick Peeks
 

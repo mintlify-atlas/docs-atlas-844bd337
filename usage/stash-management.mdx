@@ -20,7 +20,7 @@ What would you like to do?
 > Stash changes (recommended)
   Discard changes (lose all modifications)
   Abort switch
-```
+```text
 
 From `src/prompt.rs:76-99`:
 
@@ -110,7 +110,7 @@ if auto_stash && repo.has_uncommitted_changes()? {
         }
     }
 }
-```
+```text
 
 <Note>
   Stashes are saved with the message format `git-switch: branch-name` for easy identification.
@@ -160,7 +160,7 @@ if let Some(branch_state) = state.get_branch(target_branch).cloned() {
         }
     }
 }
-```
+```text
 
 <Note>
   After successfully applying a stash, gitsw automatically drops it from Git's stash list and clears it from state.
@@ -207,7 +207,7 @@ pub fn prompt_unstash_conflict() -> Result<UnstashAction> {
         _ => UnstashAction::Abort,
     })
 }
-```
+```bash
 
 ### Conflict Options
 
@@ -248,7 +248,7 @@ Branches with stashed changes:
   feature-auth (stash present, last visited 2 hours ago)
 * develop (stash present, last visited just now)
   bugfix/login (stash missing, last visited yesterday)
-```
+```bash
 
 <Warning>
   If a stash shows as "missing", it means the stash OID stored in state no longer exists in Git. This can happen if you manually dropped the stash or reset your repository.
@@ -271,7 +271,7 @@ else if !auto_stash && repo.has_uncommitted_changes()? {
         "warning:".yellow().bold()
     );
 }
-```
+```bash
 
 <Warning>
   Using `--no-stash` may cause the switch to fail if your uncommitted changes conflict with the target branch.
@@ -313,7 +313,7 @@ info: Stashing changes on 'feature-auth'...
 done: Changes stashed.
 info: Switching to 'main'...
 done: Switched to 'main'
-```
+```text
 
 ```bash Restore on Return
 $ gitsw feature-auth
@@ -334,7 +334,7 @@ What would you like to do?
 > Skip restoring changes
 
 info: Skipping stash restoration. Stash preserved for later.
-```
+```text
 
 ```bash List Stashes
 $ gitsw -l
