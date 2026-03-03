@@ -1,0 +1,249 @@
+---
+title: 'Automatic Stash Management'
+description: 'Learn how gitsw automatically stashes changes when switching branches and restores them when you return'
+icon: 'box-archive'
+---
+
+`gitsw` automatically manages your uncommitted changes using Git's stash feature. When you switch branches, it saves your work and automatically restores it when you come back.
+
+## How It Works
+
+The auto-stash feature follows a simple three-step workflow:
+
+<Steps>
+  <Step title="Leaving a Branch">
+    When you switch away from a branch with uncommitted changes, `gitsw` prompts you to stash them:
+    
+    ```bash
+    gitsw feature-branch
+    # You have uncommitted changes (2 modified, 1 untracked)
+    # What would you like to do?
+    # > Stash changes
+    #   Discard changes
+    #   Abort
+    ```
+    
+    The stash is created with the flag `INCLUDE_UNTRACKED`, meaning both staged and unstaged files are saved. Each stash is tagged with the branch name: `git-switch: branch-name`.
+  </Step>
+  
+  <Step title="Working on Another Branch">
+    Switch freely between branches. `gitsw` tracks which stash belongs to which branch in `.git/git-switch.json`:
+    
+    ```json
+    {
+      "branches": {
+        "feature-branch": {
+          "stash_id": "a1b2c3d4...",
+          "lock_file_hash": "e5f6g7h8...",
+          "last_visited": "2026-03-03T10:30:00Z"
+        }
+      }
+    }
+    ```
+  </Step>
+  
+  <Step title="Returning to the Branch">
+    When you switch back, `gitsw` automatically detects and restores your stashed changes:
+    
+    ```bash
+    gitsw feature-branch
+    # Switching to 'feature-branch'...
+    # Found stashed changes for this branch
+    # Restored stashed changes.
+    ```
+    
+    The stash is applied and then dropped automatically. Your working directory is restored to exactly how you left it.
+  </Step>
+</Steps>
+
+## Stash Creation
+
+When leaving a branch, `gitsw` detects uncommitted changes using Git's status API:
+
+- **Staged changes**: Files added with `git add`
+- **Modified files**: Changes to tracked files
+- **Untracked files**: New files not yet added to Git
+
+The stash is created in `src/git.rs:128-134`:
+
+```rust
+pub fn stash_save(&mut self, message: &str) -> Result<Oid> {
+    let signature = self.get_signature()?;
+    let oid = self
+        .repo
+        .stash_save(&signature, message, Some(StashFlags::INCLUDE_UNTRACKED))?;
+    Ok(oid)
+}
+```
+
+<Info>
+  The stash OID (Object ID) is stored in the branch state so `gitsw` can identify and restore the correct stash later.
+</Info>
+
+## Auto-Restore on Return
+
+When you switch back to a branch, `gitsw` checks if there's a stash associated with it (`src/main.rs:457-500`):
+
+```rust
+if let Some(branch_state) = state.get_branch(target_branch).cloned() {
+    if let Some(stash_id) = &branch_state.stash_id {
+        if let Ok(stash_oid) = Oid::from_str(stash_id) {
+            println!("Found stashed changes for this branch");
+            
+            match repo.stash_apply(stash_oid) {
+                Ok(()) => {
+                    println!("Restored stashed changes.");
+                    repo.stash_drop(stash_oid)?;
+                    state.clear_stash(target_branch);
+                }
+                Err(_) => {
+                    // Handle conflicts
+                }
+            }
+        }
+    }
+}
+```
+
+The stash is applied using `git2::Repository::stash_apply()`, which attempts to merge the stashed changes with the current working tree.
+
+## Conflict Handling
+
+If applying the stash causes conflicts (e.g., the branch has diverged significantly), `gitsw` prompts you with options:
+
+```bash
+⚠ Conflicts detected when applying stash
+What would you like to do?
+> Apply anyway (resolve manually)
+  Skip (keep stash for later)
+  Abort (go back to previous branch)
+```
+
+<Tabs>
+  <Tab title="Apply">
+    The stash is applied with conflict markers in the affected files. You'll need to resolve them manually:
+    
+    ```bash
+    <<<<<<< Updated upstream
+    const API_URL = '/api/v2';
+    =======
+    const API_URL = '/api/v1';
+    >>>>>>> Stashed changes
+    ```
+    
+    The stash is preserved so you don't lose your work.
+  </Tab>
+  
+  <Tab title="Skip">
+    Leaves the stash intact and continues the branch switch. You can manually apply it later:
+    
+    ```bash
+    gitsw --list  # See branches with stashes
+    git stash list  # View all stashes
+    git stash pop stash@{0}  # Apply manually
+    ```
+  </Tab>
+  
+  <Tab title="Abort">
+    Cancels the branch switch and returns you to the previous branch. Your working directory remains unchanged.
+  </Tab>
+</Tabs>
+
+<Note>
+  When conflicts occur, `gitsw` preserves the stash. This prevents data loss even if the automatic restore fails.
+</Note>
+
+## Disabling Auto-Stash
+
+You can disable automatic stashing with the `--no-stash` flag:
+
+```bash
+gitsw feature-branch --no-stash
+```
+
+This is useful when:
+
+- You want to manually manage stashes
+- You're sure there are no conflicts
+- You're switching temporarily and will return immediately
+
+<Warning>
+  With `--no-stash`, Git may refuse to switch branches if you have uncommitted changes that would be overwritten.
+</Warning>
+
+## Viewing Stashed Branches
+
+See all branches with active stashes:
+
+```bash
+gitsw --list
+```
+
+Output:
+
+```
+Branches with stashed changes:
+
+  feature-auth (stash present, last visited 2 hours ago)
+* feature-ui (stash present, last visited just now)
+  bugfix-login (stash present, last visited yesterday)
+```
+
+## Stash Lifecycle
+
+The complete lifecycle of a stash in `gitsw`:
+
+1. **Created**: When leaving a branch with uncommitted changes (`src/main.rs:388-409`)
+2. **Stored**: The stash OID is saved in `.git/git-switch.json` (`src/state.rs:75-83`)
+3. **Applied**: When returning to the branch (`src/main.rs:465-472`)
+4. **Dropped**: Automatically removed after successful application (`src/git.rs:143-148`)
+5. **Cleared**: Removed from state tracking (`src/state.rs:112-116`)
+
+<Tip>
+  If you delete a branch with `gitsw -d branch-name`, the associated stash is automatically dropped so you don't accumulate orphaned stashes.
+</Tip>
+
+## Implementation Details
+
+### State Tracking
+
+Each branch's state is tracked in `.git/git-switch.json`:
+
+```rust
+pub struct BranchState {
+    pub stash_id: Option<String>,      // Stash OID
+    pub lock_file_hash: Option<String>, // For dependency detection
+    pub last_visited: DateTime<Utc>,   // For recent branches
+}
+```
+
+### Stash Operations
+
+The `GitRepo` wrapper in `src/git.rs` provides three key operations:
+
+- `stash_save()`: Creates a stash with untracked files
+- `stash_apply()`: Restores stash contents to working tree
+- `stash_drop()`: Removes stash from Git's stash list
+
+### Finding Stashes
+
+`gitsw` uses the stash OID to find the exact stash, even if you've manually created other stashes:
+
+```rust
+fn find_stash_index(&mut self, target_oid: Oid) -> Result<usize> {
+    let mut found_index: Option<usize> = None;
+    
+    self.repo.stash_foreach(|index, _message, oid| {
+        if *oid == target_oid {
+            found_index = Some(index);
+            false  // Stop iteration
+        } else {
+            true   // Continue
+        }
+    })?;
+    
+    found_index.ok_or_else(|| anyhow!("Stash not found"))
+}
+```
+
+This ensures `gitsw` only manages its own stashes and doesn't interfere with your manual stash workflow.

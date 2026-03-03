@@ -1,0 +1,366 @@
+---
+title: 'Stash Management'
+description: 'How gitsw automatically manages stashes for each branch'
+icon: 'box-archive'
+---
+
+## Overview
+
+gitsw's killer feature is automatic, per-branch stash management. When you switch branches with uncommitted changes, gitsw can automatically stash them and restore them when you return.
+
+## Auto-Stash on Leave
+
+When you have uncommitted changes and switch branches, gitsw prompts you:
+
+```bash
+$ gitsw main
+
+You have uncommitted changes (2 modified, 1 untracked).
+What would you like to do?
+> Stash changes (recommended)
+  Discard changes (lose all modifications)
+  Abort switch
+```
+
+From `src/prompt.rs:76-99`:
+
+```rust
+pub fn prompt_stash_conflict(changes_summary: &str) -> Result<StashAction> {
+    let items = vec![
+        "Stash changes (recommended)",
+        "Discard changes (lose all modifications)",
+        "Abort switch",
+    ];
+
+    let selection = Select::with_theme(&ColorfulTheme::default())
+        .with_prompt(format!(
+            "You have uncommitted changes ({}).\nWhat would you like to do?",
+            changes_summary
+        ))
+        .items(&items)
+        .default(0)
+        .interact()?;
+
+    Ok(match selection {
+        0 => StashAction::Stash,
+        1 => StashAction::Discard,
+        _ => StashAction::Abort,
+    })
+}
+```
+
+### Stash Options
+
+<Steps>
+  <Step title="Stash changes (recommended)">
+    Saves your changes with a branch-specific message: `git-switch: branch-name`
+    
+    The stash OID is stored in `.git/git-switch.json` linked to your branch
+  </Step>
+  
+  <Step title="Discard changes">
+    Permanently deletes all uncommitted changes
+    
+    You'll get a confirmation prompt before discarding
+  </Step>
+  
+  <Step title="Abort switch">
+    Cancels the branch switch and keeps your changes
+  </Step>
+</Steps>
+
+### How Stashing Works
+
+From `src/main.rs:388-424`:
+
+```rust
+// Step 1: Handle uncommitted changes on current branch
+if auto_stash && repo.has_uncommitted_changes()? {
+    let changes_summary = repo.get_changes_summary()?;
+
+    match prompt::prompt_stash_conflict(&changes_summary)? {
+        StashAction::Stash => {
+            let message = format!("git-switch: {}", current_branch);
+            println!(
+                "{} Stashing changes on '{}'...",
+                "info:".blue().bold(),
+                current_branch.yellow()
+            );
+
+            let stash_oid = repo.stash_save(&message)?;
+            state.set_stash(&current_branch, Some(stash_oid.to_string()));
+
+            // Also save lock file hash
+            if let Some((_, hash)) = hooks::get_lock_file_hash(&workdir)? {
+                state.set_lock_hash(&current_branch, Some(hash));
+            }
+
+            state.save()?;
+            println!("{} Changes stashed.", "done:".green().bold());
+        }
+        StashAction::Discard => {
+            if !prompt::confirm_discard()? {
+                println!("{} Switch aborted.", "info:".blue().bold());
+                return Ok(());
+            }
+            repo.discard_changes()?;
+        }
+        StashAction::Abort => {
+            return Ok(());
+        }
+    }
+}
+```
+
+<Note>
+  Stashes are saved with the message format `git-switch: branch-name` for easy identification.
+</Note>
+
+## Auto-Restore on Return
+
+When you switch to a branch that has a stash, gitsw automatically restores it:
+
+```bash
+$ gitsw feature-auth
+info: Switching to 'feature-auth'...
+done: Switched to 'feature-auth'
+info: Found stashed changes for this branch
+done: Restored stashed changes.
+```
+
+From `src/main.rs:456-500`:
+
+```rust
+// Step 3: Check for stashed changes on target branch
+if let Some(branch_state) = state.get_branch(target_branch).cloned() {
+    if let Some(stash_id) = &branch_state.stash_id {
+        if let Ok(stash_oid) = Oid::from_str(stash_id) {
+            println!(
+                "{} Found stashed changes for this branch",
+                "info:".blue().bold()
+            );
+
+            match repo.stash_apply(stash_oid) {
+                Ok(()) => {
+                    println!("{} Restored stashed changes.", "done:".green().bold());
+                    
+                    // Drop the stash after successful apply
+                    if let Err(e) = repo.stash_drop(stash_oid) {
+                        eprintln!("{} Failed to drop stash: {}", 
+                                  "warning:".yellow().bold(), e);
+                    }
+                    
+                    state.clear_stash(target_branch);
+                    state.save()?;
+                }
+                Err(_) => {
+                    // Handle conflicts...
+                }
+            }
+        }
+    }
+}
+```
+
+<Note>
+  After successfully applying a stash, gitsw automatically drops it from Git's stash list and clears it from state.
+</Note>
+
+## Handling Conflicts
+
+If applying a stash causes conflicts, you'll be prompted:
+
+```bash
+$ gitsw feature-auth
+info: Switching to 'feature-auth'...
+done: Switched to 'feature-auth'
+info: Found stashed changes for this branch
+
+There was an issue applying your stashed changes.
+What would you like to do?
+> Try to apply anyway (may have conflicts)
+  Skip restoring changes
+  Abort and stay on current branch
+```
+
+From `src/prompt.rs:101-123`:
+
+```rust
+pub fn prompt_unstash_conflict() -> Result<UnstashAction> {
+    let items = vec![
+        "Try to apply anyway (may have conflicts)",
+        "Skip restoring changes",
+        "Abort and stay on current branch",
+    ];
+
+    let selection = Select::with_theme(&ColorfulTheme::default())
+        .with_prompt(
+            "There was an issue applying your stashed changes.\nWhat would you like to do?",
+        )
+        .items(&items)
+        .default(0)
+        .interact()?;
+
+    Ok(match selection {
+        0 => UnstashAction::Apply,
+        1 => UnstashAction::Skip,
+        _ => UnstashAction::Abort,
+    })
+}
+```
+
+### Conflict Options
+
+<Steps>
+  <Step title="Try to apply anyway">
+    Leaves conflict markers in your files
+    
+    The stash is preserved so you can try again later
+  </Step>
+  
+  <Step title="Skip restoring changes">
+    Completes the switch without applying the stash
+    
+    The stash remains available for manual restoration
+  </Step>
+  
+  <Step title="Abort and stay on current branch">
+    Switches back to your previous branch
+    
+    Useful if the conflicts are too complex to resolve immediately
+  </Step>
+</Steps>
+
+## Listing Stashes
+
+See which branches have stashed changes:
+
+```bash
+gitsw -l
+gitsw --list
+```
+
+Output:
+
+```bash
+Branches with stashed changes:
+
+  feature-auth (stash present, last visited 2 hours ago)
+* develop (stash present, last visited just now)
+  bugfix/login (stash missing, last visited yesterday)
+```
+
+<Warning>
+  If a stash shows as "missing", it means the stash OID stored in state no longer exists in Git. This can happen if you manually dropped the stash or reset your repository.
+</Warning>
+
+## Skipping Auto-Stash
+
+Disable automatic stashing with the `--no-stash` flag:
+
+```bash
+gitsw main --no-stash
+```
+
+From `src/main.rs:425-430`:
+
+```rust
+else if !auto_stash && repo.has_uncommitted_changes()? {
+    println!(
+        "{} Skipping stash (--no-stash), uncommitted changes may prevent switch",
+        "warning:".yellow().bold()
+    );
+}
+```
+
+<Warning>
+  Using `--no-stash` may cause the switch to fail if your uncommitted changes conflict with the target branch.
+</Warning>
+
+## State Persistence
+
+Stash metadata is stored in `.git/git-switch.json`:
+
+```json
+{
+  "branches": {
+    "feature-auth": {
+      "stash_id": "a3b2c1d4e5f6...",
+      "last_visited": "2024-03-15T10:30:00Z",
+      "lock_file_hash": "abc123..."
+    },
+    "develop": {
+      "stash_id": "f6e5d4c3b2a1...",
+      "last_visited": "2024-03-15T12:00:00Z",
+      "lock_file_hash": "def456..."
+    }
+  }
+}
+```
+
+## Terminal Examples
+
+<CodeGroup>
+
+```bash Stash on Leave
+$ gitsw main
+
+You have uncommitted changes (2 modified, 1 untracked).
+What would you like to do?
+> Stash changes (recommended)
+
+info: Stashing changes on 'feature-auth'...
+done: Changes stashed.
+info: Switching to 'main'...
+done: Switched to 'main'
+```
+
+```bash Restore on Return
+$ gitsw feature-auth
+info: Switching to 'feature-auth'...
+done: Switched to 'feature-auth'
+info: Found stashed changes for this branch
+done: Restored stashed changes.
+```
+
+```bash Conflict Handling
+$ gitsw develop
+info: Switching to 'develop'...
+done: Switched to 'develop'
+info: Found stashed changes for this branch
+
+There was an issue applying your stashed changes.
+What would you like to do?
+> Skip restoring changes
+
+info: Skipping stash restoration. Stash preserved for later.
+```
+
+```bash List Stashes
+$ gitsw -l
+Branches with stashed changes:
+
+  feature-auth (stash present, last visited 2 hours ago)
+* develop (stash present, last visited just now)
+```
+
+</CodeGroup>
+
+## Quick Reference
+
+| Command | Description |
+|---------|-------------|
+| `gitsw branch` | Auto-stash on leave, auto-restore on arrival |
+| `gitsw branch --no-stash` | Skip automatic stashing |
+| `gitsw -l` | List branches with stashes |
+| Manual stash access | Use `git stash list` to see all stashes |
+
+## How It Compares to Git Stash
+
+| Feature | Git Stash | gitsw |
+|---------|-----------|-------|
+| Stash changes | `git stash` | Automatic prompt |
+| Apply stash | `git stash pop` | Automatic on return |
+| Per-branch | Manual tracking | Automatic |
+| Stash list | All stashes mixed | Per-branch tracking |
+| Conflict handling | Manual resolution | Interactive prompts |

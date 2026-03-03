@@ -1,0 +1,172 @@
+---
+title: Command Line Options
+description: Complete reference for all gitsw command line options and arguments
+---
+
+## Overview
+
+The `gitsw` command provides a comprehensive set of options for branch management, organized into three main categories: switching operations, information display, and behavior flags.
+
+## Basic Usage
+
+```bash
+gitsw [OPTIONS] [BRANCH]
+```
+
+## Arguments
+
+<ParamField path="BRANCH" type="string" optional>
+  Target branch to switch to. If omitted, gitsw launches an interactive branch picker with fuzzy search.
+  
+  **Examples:**
+  ```bash
+  gitsw main              # Switch to main branch
+  gitsw feature-auth      # Switch to feature-auth branch
+  gitsw                   # Interactive picker
+  ```
+</ParamField>
+
+## Switching Options
+
+Options that control branch switching behavior:
+
+<ParamField path="-c, --create" type="boolean">
+  Create the target branch if it doesn't exist. Without this flag, switching to a non-existent branch will fail.
+  
+  **Examples:**
+  ```bash
+  gitsw -c new-feature    # Create and switch to new-feature
+  gitsw --create fix/bug  # Create and switch to fix/bug
+  ```
+</ParamField>
+
+<ParamField path="-p, --pull" type="boolean">
+  Pull the latest changes from the remote repository after switching branches. Useful for keeping branches up to date.
+  
+  **Examples:**
+  ```bash
+  gitsw main -p           # Switch to main and pull latest
+  gitsw -p feature        # Switch to feature and pull
+  ```
+</ParamField>
+
+<ParamField path="-t, --track" type="string" required>
+  Track and switch to a remote branch. Automatically fetches from the remote, creates a local tracking branch if needed, and switches to it.
+  
+  **Format:** `REMOTE/BRANCH`
+  
+  **Examples:**
+  ```bash
+  gitsw -t origin/feature-api        # Track origin/feature-api
+  gitsw --track upstream/main        # Track upstream/main
+  ```
+</ParamField>
+
+## Information Display Options
+
+Options for viewing branch and repository status:
+
+<ParamField path="-s, --status" type="boolean">
+  Show current status including active branch, uncommitted changes, stash state, package manager, and remote tracking information.
+  
+  **Example output:**
+  ```bash
+  $ gitsw -s
+  Branch: feature-auth
+  Changes: 3 modified, 1 untracked
+  Stash: present
+  Package manager: npm
+  Tracking: origin/feature-auth
+  ```
+</ParamField>
+
+<ParamField path="-r, --recent" type="boolean">
+  Show the 10 most recently visited branches, sorted by last access time. Includes stash indicators and timestamps.
+  
+  **Example output:**
+  ```bash
+  $ gitsw -r
+  Recent branches:
+  
+  * [1] feature-auth [stash] (just now)
+    [2] main (2 hours ago)
+    [3] develop (yesterday)
+  ```
+</ParamField>
+
+<ParamField path="-l, --list" type="boolean">
+  List all branches that have gitsw-managed stashes. Shows stash status (present/missing) and last visited time.
+  
+  **Example output:**
+  ```bash
+  $ gitsw -l
+  Branches with stashed changes:
+  
+  * feature-auth (stash present, last visited 5 min ago)
+    develop (stash present, last visited yesterday)
+  ```
+</ParamField>
+
+## Branch Management Options
+
+<ParamField path="-d, --delete" type="string" required>
+  Delete a local branch and clean up any associated stashes. Cannot delete the currently active branch. Prompts for confirmation if the branch has a stash.
+  
+  **Examples:**
+  ```bash
+  gitsw -d old-feature           # Delete old-feature branch
+  gitsw --delete experimental    # Delete experimental branch
+  ```
+</ParamField>
+
+## Behavior Flags
+
+Flags that modify default gitsw behavior:
+
+<ParamField path="--no-stash" type="boolean">
+  Skip automatic stash behavior when switching branches. By default, gitsw prompts to stash uncommitted changes. This flag disables that behavior.
+  
+  **Warning:** May cause branch switch to fail if there are conflicts with uncommitted changes.
+  
+  **Example:**
+  ```bash
+  gitsw main --no-stash    # Switch without stashing
+  ```
+</ParamField>
+
+<ParamField path="--no-install" type="boolean">
+  Skip automatic package installation prompts. By default, gitsw detects lock file changes and prompts to run the package manager's install command.
+  
+  **Example:**
+  ```bash
+  gitsw feature --no-install    # Switch without install prompt
+  ```
+</ParamField>
+
+## Version and Help
+
+<ParamField path="-h, --help" type="boolean">
+  Print help information showing all available options and usage examples.
+</ParamField>
+
+<ParamField path="-V, --version" type="boolean">
+  Print the current version of gitsw.
+</ParamField>
+
+## Combining Options
+
+Many options can be combined for powerful workflows:
+
+```bash
+# Create a new branch, switch to it, and pull latest changes
+gitsw -c -p feature-new
+
+# Track a remote branch and pull immediately
+gitsw -t origin/release -p
+
+# Switch to main, pull, and skip install prompt
+gitsw main -p --no-install
+
+# Create a branch without auto-stash behavior
+gitsw -c experimental --no-stash
+```

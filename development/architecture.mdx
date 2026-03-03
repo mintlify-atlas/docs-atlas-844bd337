@@ -1,0 +1,204 @@
+---
+title: Architecture
+description: Technical architecture and module design of gitsw
+---
+
+## Overview
+
+gitsw is built as a Rust CLI application with a modular architecture that separates concerns into distinct modules. The application uses `git2` for Git operations and maintains its own state in `.git/git-switch.json`.
+
+## Module Structure
+
+The codebase is organized into four core modules defined in `src/lib.rs:1`:
+
+### git Module
+
+Location: `src/git.rs`
+
+Provides Git repository operations through the `GitRepo` wrapper around `libgit2`:
+
+- **Repository operations**: Open, get current branch, check branch existence
+- **Branch management**: Create, delete, switch, list branches, track remote branches
+- **Stash operations**: Save, apply, drop, list stashes with OID tracking
+- **Change detection**: Check for uncommitted changes, generate change summaries
+- **Remote operations**: Fetch, pull with fast-forward support
+- **Tree manipulation**: Checkout with safe/force modes, discard changes
+
+Key types:
+- `GitRepo`: Main wrapper struct containing `git2::Repository`
+- `StashInfo`: Stash metadata (index, message, OID)
+
+### hooks Module
+
+Location: `src/hooks.rs`
+
+Handles package manager detection and lock file change tracking:
+
+- **Package manager detection**: Automatically detects npm, yarn, or pnpm based on lock files
+- **Lock file hashing**: Computes SHA256 hashes to detect changes
+- **Install execution**: Runs appropriate install commands for detected package managers
+
+Key types:
+- `PackageManager`: Enum for Npm, Yarn, Pnpm with associated lock file paths and install commands
+
+Functions:
+- `detect_package_manager()`: Checks for lock files in priority order (pnpm > yarn > npm)
+- `get_lock_file_hash()`: Returns package manager and file hash
+- `run_install()`: Spawns install process with inherited stdio
+
+### prompt Module
+
+Location: `src/prompt.rs`
+
+Provides interactive user prompts using `dialoguer`:
+
+- **Branch selection**: Fuzzy search picker showing recent branches first
+- **Conflict resolution**: Prompts for stash/discard/abort decisions
+- **Install prompts**: Ask before running package manager installs
+- **Confirmation dialogs**: Confirm destructive operations (delete, discard)
+
+Key types:
+- `StashAction`: Enum for stash conflict resolution (Stash, Discard, Abort)
+- `UnstashAction`: Enum for unstash conflict resolution (Apply, Skip, Abort)
+
+Functions:
+- `select_branch()`: Interactive fuzzy search for branches sorted by recency
+- `prompt_stash_conflict()`: Handle uncommitted changes on switch
+- `prompt_unstash_conflict()`: Handle stash application conflicts
+- `prompt_install()`: Confirm package install
+
+### state Module
+
+Location: `src/state.rs`
+
+Manages persistent state in `.git/git-switch.json`:
+
+- **State persistence**: Load and save state to Git directory
+- **Branch tracking**: Store per-branch metadata (stash IDs, lock hashes, timestamps)
+- **Recency tracking**: Maintain last visited timestamps for branch sorting
+
+Key types:
+- `BranchState`: Per-branch state with stash_id, lock_file_hash, last_visited
+- `StateData`: Root state object containing branches HashMap
+- `StateManager`: State operations and persistence layer
+
+State file location: `.git/git-switch.json`
+
+## Component Interaction
+
+### Branch Switch Flow
+
+```
+main.rs:switch_branch()
+  ├─> GitRepo::get_current_branch()
+  ├─> StateManager::load()
+  │
+  ├─> [Leave current branch]
+  │   ├─> GitRepo::has_uncommitted_changes()
+  │   ├─> prompt::prompt_stash_conflict()
+  │   ├─> GitRepo::stash_save()
+  │   ├─> hooks::get_lock_file_hash()
+  │   └─> StateManager::set_stash() + save()
+  │
+  ├─> [Switch branch]
+  │   ├─> GitRepo::create_branch() [if --create]
+  │   └─> GitRepo::switch_branch()
+  │
+  ├─> [Enter target branch]
+  │   ├─> StateManager::get_branch()
+  │   ├─> GitRepo::stash_apply()
+  │   ├─> prompt::prompt_unstash_conflict() [if conflict]
+  │   └─> GitRepo::stash_drop()
+  │
+  ├─> [Pull if requested]
+  │   └─> GitRepo::pull()
+  │
+  └─> [Check dependencies]
+      ├─> hooks::get_lock_file_hash()
+      ├─> StateManager::get_branch().lock_file_hash
+      ├─> prompt::prompt_install()
+      ├─> hooks::run_install()
+      └─> StateManager::set_lock_hash() + save()
+```
+
+### State Management
+
+State is stored as JSON in `.git/git-switch.json` with the structure:
+
+```json
+{
+  "branches": {
+    "feature-branch": {
+      "stash_id": "a1b2c3d4...",
+      "lock_file_hash": "e5f6g7h8...",
+      "last_visited": "2026-03-03T10:30:00Z"
+    }
+  }
+}
+```
+
+The state manager:
+1. Loads state on startup from `.git/git-switch.json:42`
+2. Updates in-memory state during operations
+3. Persists changes via `save()` at key transition points
+4. Tracks stash OIDs to locate and apply stashes later
+5. Stores lock file hashes to detect dependency changes
+6. Records visit timestamps for recency sorting
+
+## Data Flow
+
+### Stash Lifecycle
+
+1. **Create**: `GitRepo::stash_save()` returns OID
+2. **Store**: `StateManager::set_stash()` saves OID to branch state
+3. **Persist**: `StateManager::save()` writes to `.git/git-switch.json`
+4. **Retrieve**: `StateManager::get_branch()` loads branch state with stash OID
+5. **Apply**: `GitRepo::stash_apply()` uses OID to find and apply stash
+6. **Cleanup**: `GitRepo::stash_drop()` removes stash, `StateManager::clear_stash()` clears state
+
+### Lock File Tracking
+
+1. **Detect**: `hooks::detect_package_manager()` finds lock file
+2. **Hash**: `hooks::get_file_hash()` computes SHA256
+3. **Store**: `StateManager::set_lock_hash()` saves on branch leave
+4. **Compare**: On branch enter, compare current hash with stored hash
+5. **Install**: If different, prompt and run `hooks::run_install()`
+6. **Update**: Store new hash after install completes
+
+## CLI Entry Point
+
+Location: `src/main.rs`
+
+The main binary uses `clap` for argument parsing and dispatches to handler functions:
+
+- `main()` → `run()` with error handling at `src/main.rs:60`
+- Command routing based on flags (--status, --list, --recent, --delete, --track)
+- Falls back to `switch_branch()` for default behavior
+- Interactive mode when no branch argument provided
+
+## Key Design Decisions
+
+**State isolation**: Each repository has its own state file in `.git/`, never shared across repos
+
+**OID-based stash tracking**: Uses Git's internal OIDs rather than stash names for precise identification
+
+**Prompt-first UX**: Always prompts before destructive operations (stash, discard, delete)
+
+**Package manager priority**: Detects in order pnpm > yarn > npm based on lock file presence
+
+**Recent branch sorting**: Combines state tracking with fuzzy search for optimal branch picker UX
+
+**Fast-forward only pulls**: Refuses to pull if fast-forward not possible, requires manual merge
+
+## Dependencies
+
+Core dependencies from `Cargo.toml:22`:
+
+- **git2**: libgit2 bindings for Git operations
+- **clap**: Command-line argument parsing with derive macros
+- **serde/serde_json**: State serialization to JSON
+- **dialoguer**: Interactive prompts with fuzzy search
+- **colored**: Terminal color output
+- **chrono**: Timestamp handling for recency tracking
+- **sha2**: Lock file hashing
+- **anyhow**: Error handling with context

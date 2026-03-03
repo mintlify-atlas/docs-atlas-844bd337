@@ -1,0 +1,128 @@
+---
+title: 'gitsw --status'
+description: 'Display current branch status including changes, stashes, and tracking info'
+---
+
+## Syntax
+
+```bash
+gitsw -s
+gitsw --status
+```
+
+## Description
+
+The `--status` flag displays comprehensive information about the current branch state, including:
+
+- Current branch name
+- Working directory changes (modified/untracked files)
+- Stash status for the current branch
+- Package manager detection
+- Remote tracking information
+
+## Implementation
+
+The `show_status` function (src/main.rs:110-152) performs the following checks:
+
+### 1. Branch name
+Displays the current branch name in green:
+```
+Branch: {current_branch}
+```
+
+### 2. Changes detection
+Checks for uncommitted changes using `has_uncommitted_changes()`:
+- If changes exist: Shows summary (e.g., "3 modified, 1 untracked") in yellow
+- If clean: Shows "clean" in dimmed text
+```
+Changes: {summary}
+```
+
+### 3. Stash detection
+Looks up the current branch in gitsw state:
+- Verifies the stash OID exists in the Git stash list
+- Only shows if stash is actually present in Git
+```
+Stash: present
+```
+
+### 4. Package manager
+Detects package manager by checking for lock files:
+- `package-lock.json` → npm
+- `yarn.lock` → yarn
+- `pnpm-lock.yaml` → pnpm
+```
+Package manager: {name}
+```
+
+### 5. Remote tracking
+Checks if the branch is tracking a remote:
+```
+Tracking: {remote/branch}
+```
+
+## Example Output
+
+### Clean branch with no stash
+```bash
+$ gitsw -s
+Branch: main
+Changes: clean
+Package manager: npm
+Tracking: origin/main
+```
+
+### Branch with uncommitted changes
+```bash
+$ gitsw -s
+Branch: feature-auth
+Changes: 3 modified, 1 untracked
+Package manager: npm
+Tracking: origin/feature-auth
+```
+
+### Branch with stashed changes
+```bash
+$ gitsw -s
+Branch: feature-auth
+Changes: clean
+Stash: present
+Package manager: npm
+Tracking: origin/feature-auth
+```
+
+### New local branch (no remote tracking)
+```bash
+$ gitsw -s
+Branch: feature-login
+Changes: 2 modified
+Package manager: pnpm
+```
+
+## Output Fields
+
+<ResponseField name="Branch" type="string">
+  Name of the current branch (displayed in green).
+</ResponseField>
+
+<ResponseField name="Changes" type="string">
+  Summary of uncommitted changes. Shows "clean" if no changes, otherwise displays count of modified and untracked files (in yellow).
+</ResponseField>
+
+<ResponseField name="Stash" type="string" optional>
+  Only displayed if a gitsw-managed stash exists for the current branch. Shows "present" in yellow.
+</ResponseField>
+
+<ResponseField name="Package manager" type="string" optional>
+  Only displayed if a package manager lock file is detected. Shows package manager name (npm, yarn, or pnpm).
+</ResponseField>
+
+<ResponseField name="Tracking" type="string" optional>
+  Only displayed if the branch is tracking a remote. Shows remote/branch format (e.g., "origin/main").
+</ResponseField>
+
+## Related Commands
+
+- [list](/reference/list) - View all branches with stashes
+- [recent](/reference/recent) - View recently visited branches
+- [switch](/reference/switch) - Switch to a different branch

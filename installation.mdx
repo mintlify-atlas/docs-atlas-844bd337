@@ -1,0 +1,140 @@
+---
+title: Installation
+description: Install gitsw using cargo, the quick install script, or pre-built binaries
+---
+
+# Installation
+
+Choose the installation method that works best for your platform and workflow.
+
+## Quick Install Script (Recommended)
+
+The fastest way to install gitsw on macOS and Linux:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/yigiterdev/git-switch/main/install.sh | sh
+```
+
+This script:
+- Automatically detects your operating system and architecture
+- Downloads the latest pre-built binary
+- Installs to `/usr/local/bin` (requests sudo if needed)
+- Verifies the installation
+
+<Note>
+  The install script supports macOS (Apple Silicon), Linux (x64), and Windows. Intel Mac users should use `cargo install` instead.
+</Note>
+
+## Install from Crates.io
+
+If you have Rust installed, you can install gitsw using cargo:
+
+```bash
+cargo install gitsw
+```
+
+This method:
+- Works on all platforms with Rust 1.70+
+- Compiles from source for optimal performance on your system
+- Automatically adds the binary to your cargo bin directory
+
+<Note>
+  Make sure `~/.cargo/bin` is in your PATH to run gitsw from anywhere.
+</Note>
+
+## Install from Source
+
+For the latest development version or to contribute:
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/yigiterdev/git-switch.git
+    cd gitsw
+    ```
+  </Step>
+  
+  <Step title="Install with cargo">
+    ```bash
+    cargo install --path .
+    ```
+  </Step>
+  
+  <Step title="Verify installation">
+    ```bash
+    gitsw --version
+    ```
+  </Step>
+</Steps>
+
+## Install from GitHub
+
+Install directly from the GitHub repository:
+
+```bash
+cargo install --git https://github.com/yigiterdev/git-switch
+```
+
+## Pre-built Binaries
+
+Download pre-compiled binaries for your platform from the [GitHub Releases](https://github.com/yigiterdev/git-switch/releases) page.
+
+### Available Platforms
+
+| Platform | Architecture | Download |
+|----------|-------------|----------|
+| macOS | Apple Silicon (M1/M2/M3) | [gitsw-aarch64-apple-darwin.tar.gz](https://github.com/yigiterdev/git-switch/releases/latest) |
+| Linux | x86_64 | [gitsw-x86_64-unknown-linux-gnu.tar.gz](https://github.com/yigiterdev/git-switch/releases/latest) |
+| Windows | x86_64 | [gitsw-x86_64-pc-windows-msvc.zip](https://github.com/yigiterdev/git-switch/releases/latest) |
+
+<Note>
+  For macOS Intel systems, use `cargo install gitsw` as pre-built binaries are not available for this platform.
+</Note>
+
+### Manual Installation Steps
+
+<Steps>
+  <Step title="Download the binary">
+    Download the appropriate archive for your platform from the releases page.
+  </Step>
+  
+  <Step title="Extract the archive">
+    <CodeGroup>
+    ```bash macOS/Linux
+    tar xzf gitsw-*.tar.gz
+    ```
+    
+    ```bash Windows
+    unzip gitsw-*.zip
+    ```
+    </CodeGroup>
+  </Step>
+  
+  <Step title="Move to PATH">
+    <CodeGroup>
+    ```bash macOS/Linux
+    sudo mv gitsw /usr/local/bin/
+    sudo chmod +x /usr/local/bin/gitsw
+    ```
+    
+    ```bash Windows (PowerShell)
+    Move-Item gitsw.exe C:\Windows\System32\
+    ```
+    </CodeGroup>
+  </Step>
+  
+  <Step title="Verify installation">
+    ```bash
+    gitsw --version
+    ```
+  </Step>
+</Steps>
+
+## Requirements
+
+- Git 2.0 or later
+- For cargo installation: Rust 1.70 or later
+
+## Next Steps
+
+Now that you have gitsw installed, check out the [Quick Start guide](/quickstart) to learn how to use it.

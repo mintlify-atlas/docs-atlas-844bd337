@@ -1,0 +1,115 @@
+---
+title: 'gitsw --list'
+description: 'List all branches that have gitsw-managed stashes'
+---
+
+## Syntax
+
+```bash
+gitsw -l
+gitsw --list
+```
+
+## Description
+
+The `--list` flag displays all branches that have stashes managed by gitsw. This helps you track which branches have saved changes and whether those stashes still exist in Git.
+
+## Implementation
+
+The `list_stashes` function (src/main.rs:154-204) performs the following:
+
+### 1. Load state and stashes
+- Reads gitsw state from `.git/git-switch.json`
+- Retrieves all Git stashes in the repository
+- Filters for branches that have stash IDs in gitsw state
+
+### 2. Validate stashes
+For each branch with a stash ID:
+- Verifies the stash OID still exists in Git's stash list
+- Marks stash as "present" (yellow) or "missing" (red)
+
+### 3. Display format
+- Current branch marked with `*` and displayed in green/bold
+- Other branches shown with 2-space indent
+- Shows stash status and last visited time
+
+## Output Format
+
+```
+Branches with stashed changes:
+
+  {marker}{branch_name} ({stash_status}, last visited {time})
+```
+
+- `marker`: `* ` for current branch, `  ` (two spaces) for others
+- `branch_name`: Green/bold if current, normal otherwise
+- `stash_status`: "stash present" (yellow) or "stash missing" (red)
+- `time`: Human-readable time format (see Time Format below)
+
+## Example Output
+
+### With stashed branches
+```bash
+$ gitsw -l
+Branches with stashed changes:
+
+* feature-auth (stash present, last visited just now)
+  develop (stash present, last visited 2 hours ago)
+  feature-api (stash missing, last visited yesterday)
+```
+
+### No stashed branches
+```bash
+$ gitsw -l
+No branches with git-switch stashes found.
+```
+
+## Time Format
+
+The `format_time_ago` function (src/main.rs:569-586) converts timestamps to human-readable format:
+
+| Duration | Format |
+|----------|--------|
+| < 1 minute | "just now" |
+| 1-59 minutes | "{n} min ago" |
+| 1-23 hours | "{n} hour(s) ago" |
+| 1 day | "yesterday" |
+| 2+ days | "{n} days ago" |
+
+## Stash Status
+
+<ResponseField name="stash present" type="yellow">
+  The stash OID from gitsw state exists in Git's stash list. Changes can be restored.
+</ResponseField>
+
+<ResponseField name="stash missing" type="red">
+  The stash OID is in gitsw state but no longer exists in Git (manually dropped or repository issue). Changes are lost.
+</ResponseField>
+
+## Use Cases
+
+### Find branches with pending changes
+```bash
+gitsw -l
+```
+Quickly see which branches have work-in-progress that was stashed.
+
+### Verify stash integrity
+Check if any stashes were lost:
+```bash
+gitsw -l | grep "stash missing"
+```
+
+### Clean up old branches
+Before deleting branches, check if they have stashes:
+```bash
+gitsw -l
+gitsw -d old-branch  # Safely removes branch and its stash
+```
+
+## Related Commands
+
+- [delete](/reference/delete) - Delete a branch and clean up its stash
+- [status](/reference/status) - View current branch stash status
+- [switch](/reference/switch) - Switch branches (auto-restores stashes)
+- [recent](/reference/recent) - View recent branches with stash indicators

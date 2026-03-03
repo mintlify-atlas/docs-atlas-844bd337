@@ -1,80 +1,230 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick Start
+description: Get up and running with gitsw in minutes
 ---
 
-## Get started in three steps
+# Quick Start
 
-Get your documentation site running locally and make your first customization.
+This guide will help you start using gitsw to switch branches with automatic stash management.
 
-### Step 1: Set up your local environment
+## Prerequisites
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+Make sure you have:
+- [Installed gitsw](/installation)
+- A Git repository to work with
+
+## Basic Usage
+
+<Steps>
+  <Step title="Interactive Branch Selection">
+    Run `gitsw` without arguments to launch the interactive branch picker:
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+    ```bash
+    gitsw
+    ```
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
+    This opens a fuzzy-search interface showing all your branches with recent ones listed first. Use:
+    - Arrow keys to navigate
+    - Type to filter branches
+    - Enter to select and switch
     
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    Example output:
+    ```
+    Select branch:
+    > main
+      feature-auth
+      develop
+      feature-api
+    ```
+  </Step>
+  
+  <Step title="Direct Branch Switch">
+    Switch to a specific branch by name:
+    
+    ```bash
+    gitsw main
+    ```
+    
+    If you have uncommitted changes, gitsw will prompt you:
+    ```
+    warning: You have uncommitted changes (3 modified, 1 untracked)
+    
+    What would you like to do?
+    > Stash changes
+      Discard changes
+      Abort switch
+    ```
+    
+    Choose "Stash changes" and gitsw will:
+    - Automatically stash your changes with a branch-specific identifier
+    - Switch to the target branch
+    - Restore the changes when you return to the original branch
+  </Step>
+  
+  <Step title="Return to Previous Branch">
+    When you switch back to a branch with stashed changes:
+    
+    ```bash
+    gitsw feature-auth
+    ```
+    
+    gitsw automatically restores your work:
+    ```
+    info: Switching to 'feature-auth'...
+    done: Switched to 'feature-auth'
+    info: Found stashed changes for this branch
+    done: Restored stashed changes.
+    ```
+  </Step>
+</Steps>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+## Common Workflows
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+### Create a New Branch
 
-### Step 3: Go live
+Create and switch to a new branch in one command:
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+```bash
+gitsw -c new-feature
+```
 
-## Next steps
+### Pull Latest Changes
 
-Now that you have your docs running, explore these key features:
+Switch to a branch and pull the latest changes:
 
-<CardGroup cols={2}>
+```bash
+gitsw main -p
+```
 
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
+### Track a Remote Branch
 
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
+Fetch and track a remote branch:
 
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
+```bash
+gitsw -t origin/feature-api
+```
 
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
+This will:
+- Fetch from the remote
+- Create a local tracking branch
+- Switch to the new branch
 
-</CardGroup>
+### View Recent Branches
+
+See your recently used branches with timestamps:
+
+```bash
+gitsw -r
+```
+
+Example output:
+```
+Recent branches:
+
+* [1] feature-auth (current)
+  [2] main (2 hours ago)
+  [3] develop [stash] (yesterday)
+  [4] feature-api (3 days ago)
+```
+
+The `[stash]` indicator shows branches with saved changes.
+
+### Check Current Status
+
+View your current branch status including changes and stashes:
+
+```bash
+gitsw -s
+```
+
+Example output:
+```
+Branch: feature-auth
+Changes: 3 modified, 1 untracked
+Stash: present
+Package manager: npm
+Tracking: origin/feature-auth
+```
+
+## Package Manager Detection
+
+When you switch branches, gitsw automatically detects changes to lock files and prompts you to install dependencies:
+
+```
+info: Lock file has changed
+Run npm install? (y/n)
+```
+
+Supported package managers:
+- npm (`package-lock.json`)
+- yarn (`yarn.lock`)
+- pnpm (`pnpm-lock.yaml`)
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  Use `--no-install` to skip the automatic install prompt if needed.
 </Note>
+
+## Skip Automatic Features
+
+You can disable automatic stashing or installation when needed:
+
+```bash
+# Skip automatic stash
+gitsw main --no-stash
+
+# Skip automatic install prompt
+gitsw feature --no-install
+```
+
+## List All Branches with Stashes
+
+See which branches have saved stashes:
+
+```bash
+gitsw -l
+```
+
+Example output:
+```
+Branches with stashed changes:
+
+  feature-auth (stash present, last visited 2 hours ago)
+  develop (stash present, last visited yesterday)
+```
+
+## Delete a Branch
+
+Delete a branch and automatically clean up its stash:
+
+```bash
+gitsw -d old-feature
+```
+
+If the branch has a stash, gitsw will warn you and ask for confirmation before deleting both the branch and its stash.
+
+## Next Steps
+
+Now that you know the basics:
+
+<CardGroup cols={2}>
+  <Card title="View All Options" icon="terminal" href="#">
+    Run `gitsw --help` to see all available commands and options
+  </Card>
+  <Card title="Learn Advanced Features" icon="book" href="#">
+    Explore branch management, remote tracking, and more
+  </Card>
+</CardGroup>
+
+## Getting Help
+
+For a complete list of options:
+
+```bash
+gitsw --help
+```
+
+To check your installed version:
+
+```bash
+gitsw --version
+```

@@ -1,0 +1,386 @@
+---
+title: Contributing
+description: Guide for contributing to gitsw development
+---
+
+## Development Setup
+
+Clone the repository and set up your development environment:
+
+```bash
+git clone https://github.com/yigiterdev/git-switch.git
+cd gitsw
+```
+
+### Install Pre-commit Hooks
+
+The project uses pre-commit hooks to ensure code quality. Run the setup script:
+
+```bash
+./scripts/setup-hooks.sh
+```
+
+This installs hooks that automatically run before each commit:
+- `cargo fmt --check`: Verify code formatting
+- `cargo clippy`: Run linter checks
+
+If the hooks fail, the commit will be rejected. Fix the issues and try again.
+
+### Build the Project
+
+Build the project in debug mode:
+
+```bash
+cargo build
+```
+
+Build optimized release binary:
+
+```bash
+cargo build --release
+```
+
+The binary will be available at:
+- Debug: `target/debug/gitsw`
+- Release: `target/release/gitsw`
+
+### Run Tests
+
+Execute the test suite:
+
+```bash
+cargo test
+```
+
+Run tests with output:
+
+```bash
+cargo test -- --nocapture
+```
+
+Tests are located in:
+- `src/hooks.rs:97` - Package manager detection and hashing tests
+- Unit tests use `tempfile` for isolated filesystem operations
+
+## Development Workflow
+
+### Making Changes
+
+1. **Create a feature branch**:
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+
+2. **Make your changes** following the code style:
+   - Use `cargo fmt` to format code
+   - Run `cargo clippy` to check for issues
+   - Add tests for new functionality
+
+3. **Test your changes**:
+   ```bash
+   cargo build
+   cargo test
+   ./target/debug/gitsw --help  # Manual testing
+   ```
+
+4. **Commit your changes**:
+   ```bash
+   git add .
+   git commit -m "Add: description of your changes"
+   ```
+   
+   The pre-commit hooks will run automatically. If they fail:
+   ```bash
+   cargo fmt              # Fix formatting
+   cargo clippy --fix     # Auto-fix clippy issues
+   git add .
+   git commit
+   ```
+
+5. **Push and create a pull request**:
+   ```bash
+   git push origin feature/your-feature-name
+   ```
+
+## Code Organization
+
+The codebase follows a modular structure defined in `src/lib.rs:1`:
+
+```
+src/
+├── lib.rs         # Module declarations
+├── main.rs        # CLI entry point and command handlers
+├── git.rs         # Git operations (GitRepo wrapper)
+├── hooks.rs       # Package manager detection and install
+├── prompt.rs      # Interactive user prompts
+└── state.rs       # State persistence (.git/git-switch.json)
+```
+
+### Module Responsibilities
+
+**main.rs**: CLI argument parsing, command routing, high-level workflow orchestration
+
+**git.rs**: All Git operations using `git2` library (branch, stash, checkout, remote)
+
+**hooks.rs**: Package manager detection (npm/yarn/pnpm), lock file hashing, install execution
+
+**prompt.rs**: User interaction via `dialoguer` (branch picker, confirmations, conflict resolution)
+
+**state.rs**: JSON state management for stash tracking, lock hashes, and recency data
+
+## Adding New Features
+
+### Adding a New Command
+
+1. **Add CLI argument** in `src/main.rs:11` to the `Args` struct:
+   ```rust
+   #[derive(Parser, Debug)]
+   struct Args {
+       // ... existing fields
+       
+       /// Your new flag description
+       #[arg(long)]
+       your_flag: bool,
+   }
+   ```
+
+2. **Add handler** in `src/main.rs:67` in the `run()` function:
+   ```rust
+   fn run() -> Result<()> {
+       let args = Args::parse();
+       
+       if args.your_flag {
+           return your_handler();
+       }
+       // ... existing handlers
+   }
+   ```
+
+3. **Implement handler function** in `src/main.rs`:
+   ```rust
+   fn your_handler() -> Result<()> {
+       let repo = GitRepo::open()?;
+       // Your implementation
+       Ok(())
+   }
+   ```
+
+### Adding Git Operations
+
+Add new methods to the `GitRepo` struct in `src/git.rs:7`:
+
+```rust
+impl GitRepo {
+    pub fn your_operation(&self) -> Result<()> {
+        // Use self.repo (git2::Repository) for Git operations
+        Ok(())
+    }
+}
+```
+
+### Adding State Fields
+
+Update `BranchState` in `src/state.rs:10` and add corresponding methods:
+
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BranchState {
+    pub stash_id: Option<String>,
+    pub lock_file_hash: Option<String>,
+    pub last_visited: DateTime<Utc>,
+    pub your_field: Option<String>,  // Add new field
+}
+
+impl StateManager {
+    pub fn set_your_field(&mut self, branch: &str, value: Option<String>) {
+        let state = self.data.branches.entry(branch.to_string()).or_default();
+        state.your_field = value;
+    }
+}
+```
+
+### Adding Package Managers
+
+Extend the `PackageManager` enum in `src/hooks.rs:7`:
+
+```rust
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PackageManager {
+    Npm,
+    Yarn,
+    Pnpm,
+    YourPackageManager,  // Add new variant
+}
+
+impl PackageManager {
+    pub fn lock_file(&self) -> &'static str {
+        match self {
+            // ... existing
+            PackageManager::YourPackageManager => "your-lock.file",
+        }
+    }
+    
+    // Update other methods similarly
+}
+```
+
+Update detection order in `detect_package_manager()` at `src/hooks.rs:49`.
+
+## Code Style
+
+### Formatting
+
+Use `rustfmt` with default settings:
+
+```bash
+cargo fmt
+```
+
+Check formatting without modifying:
+
+```bash
+cargo fmt --check
+```
+
+### Linting
+
+Run Clippy for lints and suggestions:
+
+```bash
+cargo clippy
+```
+
+Apply automatic fixes:
+
+```bash
+cargo clippy --fix
+```
+
+### Error Handling
+
+Use `anyhow::Result` for functions that can fail:
+
+```rust
+use anyhow::{anyhow, Context, Result};
+
+fn example() -> Result<()> {
+    something()?
+        .context("Additional context for error")?;
+    Ok(())
+}
+```
+
+### User Output
+
+Use colored output for user-facing messages:
+
+```rust
+use colored::Colorize;
+
+println!("{} Message", "info:".blue().bold());
+println!("{} Success", "done:".green().bold());
+println!("{} Warning", "warning:".yellow().bold());
+println!("{} Error", "error:".red().bold());
+```
+
+## Testing
+
+### Unit Tests
+
+Add tests in the same file as the implementation:
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_your_feature() {
+        let dir = TempDir::new().unwrap();
+        // Your test
+    }
+}
+```
+
+See `src/hooks.rs:97` for examples.
+
+### Integration Testing
+
+For testing with real Git repositories, use `tempfile::TempDir`:
+
+```rust
+use tempfile::TempDir;
+use git2::Repository;
+
+#[test]
+fn test_with_git_repo() {
+    let dir = TempDir::new().unwrap();
+    let repo = Repository::init(dir.path()).unwrap();
+    // Test with real repo
+}
+```
+
+### Manual Testing
+
+Test the binary in a real Git repository:
+
+```bash
+cargo build
+cd /path/to/test/repo
+/path/to/gitsw/target/debug/gitsw --help
+```
+
+Create an alias for easier testing:
+
+```bash
+alias gitsw-dev='/path/to/gitsw/target/debug/gitsw'
+```
+
+## Submitting Pull Requests
+
+### Before Submitting
+
+- [ ] Code is formatted (`cargo fmt`)
+- [ ] No clippy warnings (`cargo clippy`)
+- [ ] All tests pass (`cargo test`)
+- [ ] Pre-commit hooks are installed and passing
+- [ ] New features have tests
+- [ ] Manual testing completed
+
+### PR Description
+
+Include in your pull request:
+
+1. **Summary**: What does this PR do?
+2. **Motivation**: Why is this change needed?
+3. **Changes**: List of key changes
+4. **Testing**: How did you test this?
+5. **Screenshots**: If UI changes, include terminal output
+
+### Review Process
+
+1. Automated checks will run on your PR
+2. Maintainers will review your code
+3. Address feedback and push updates
+4. Once approved, your PR will be merged
+
+## Release Process
+
+Releases are managed by maintainers:
+
+1. Update version in `Cargo.toml:3`
+2. Update CHANGELOG if present
+3. Create Git tag: `git tag v0.x.x`
+4. Push tag: `git push origin v0.x.x`
+5. Publish to crates.io: `cargo publish`
+
+## Getting Help
+
+- **Issues**: Report bugs or request features on [GitHub Issues](https://github.com/yigiterdev/git-switch/issues)
+- **Discussions**: Ask questions in GitHub Discussions
+- **Code**: Reference the [Architecture](/development/architecture) documentation
+
+## License
+
+By contributing, you agree that your contributions will be licensed under the MIT License.

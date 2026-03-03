@@ -1,0 +1,138 @@
+---
+title: 'gitsw --recent'
+description: 'Display recently visited branches sorted by last access time'
+---
+
+## Syntax
+
+```bash
+gitsw -r
+gitsw --recent
+```
+
+## Description
+
+The `--recent` flag shows up to 10 recently visited branches, sorted by last access time (most recent first). This provides a quick way to return to branches you were recently working on.
+
+## Implementation
+
+The `show_recent` function (src/main.rs:206-252) performs the following:
+
+### 1. Load and sort branches
+- Reads gitsw state from `.git/git-switch.json`
+- Retrieves up to 10 most recently visited branches
+- Sorts by `last_visited` timestamp (descending)
+
+### 2. Display format
+- Current branch marked with `*` and displayed in green/bold
+- Other branches shown with 2-space indent
+- Numbered list `[1]`, `[2]`, etc.
+- Shows `[stash]` indicator if branch has stashed changes
+- Displays time since last visit
+
+## Output Format
+
+```
+Recent branches:
+
+  {marker}[{index}] {branch_name}{stash_indicator} ({time})
+```
+
+- `marker`: `* ` for current branch, `  ` (two spaces) for others
+- `index`: 1-based position number in dimmed text
+- `branch_name`: Green/bold if current, normal otherwise
+- `stash_indicator`: ` [stash]` in yellow if branch has stash, empty otherwise
+- `time`: Human-readable time since last visit (dimmed)
+
+## Example Output
+
+### With recent branches
+```bash
+$ gitsw -r
+Recent branches:
+
+* [1] feature-auth (just now)
+  [2] main (2 hours ago)
+  [3] develop [stash] (yesterday)
+  [4] feature-api (3 days ago)
+  [5] bugfix/login [stash] (5 days ago)
+```
+
+### Current branch not in recent list
+```bash
+$ gitsw -r
+Recent branches:
+
+  [1] main (1 hour ago)
+  [2] develop (yesterday)
+  [3] feature-api (2 days ago)
+```
+
+### No recent branches tracked
+```bash
+$ gitsw -r
+No recent branches tracked yet.
+```
+
+## Time Format
+
+The `format_time_ago` function (src/main.rs:569-586) converts timestamps:
+
+| Duration | Format |
+|----------|--------|
+| < 1 minute | "just now" |
+| 1-59 minutes | "{n} min ago" |
+| 1-23 hours | "{n} hour(s) ago" |
+| 1 day | "yesterday" |
+| 2+ days | "{n} days ago" |
+
+## Stash Indicator
+
+<ResponseField name="[stash]" type="yellow">
+  Displayed after branch name if the branch has a stash ID in gitsw state. Does not verify if stash still exists in Git.
+</ResponseField>
+
+## Tracking Behavior
+
+Branches are tracked when:
+- You switch to them using `gitsw`
+- You switch away from them using `gitsw`
+
+The `last_visited` timestamp is updated by the `touch_branch` function:
+- Called before leaving current branch (src/main.rs:385)
+- Called after switching to target branch (src/main.rs:513)
+
+## Maximum Branches
+
+The function calls `state.recent_branches(10)` to limit results to 10 branches. This is hardcoded in the implementation.
+
+## Use Cases
+
+### Quick navigation to recent work
+```bash
+gitsw -r  # See where you've been
+gitsw feature-api  # Switch back to recent branch
+```
+
+### Check for uncommitted work
+The `[stash]` indicator shows branches with pending changes:
+```bash
+$ gitsw -r
+Recent branches:
+
+  [1] main (1 hour ago)
+  [2] develop [stash] (yesterday)  # Has uncommitted work
+  [3] feature-api [stash] (2 days ago)  # Has uncommitted work
+```
+
+### Review work context
+See your recent workflow and branch switching patterns:
+```bash
+gitsw -r
+```
+
+## Related Commands
+
+- [list](/reference/list) - View all branches with stashes (with validation)
+- [status](/reference/status) - View current branch status
+- [switch](/reference/switch) - Switch to a branch (updates recent list)

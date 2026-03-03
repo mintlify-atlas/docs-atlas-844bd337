@@ -1,0 +1,332 @@
+---
+title: 'Package Manager Sync'
+description: 'Automatic detection and installation of dependencies when lock files change between branches'
+icon: 'box'
+---
+
+`gitsw` automatically detects when dependency lock files have changed and prompts you to run installation commands. This prevents "works on my branch" issues caused by outdated dependencies.
+
+## Supported Package Managers
+
+`gitsw` detects and supports three major JavaScript package managers:
+
+<CardGroup cols={3}>
+  <Card title="npm" icon="node">
+    Detects `package-lock.json`
+    
+    Runs: `npm install`
+  </Card>
+  <Card title="Yarn" icon="yarn">
+    Detects `yarn.lock`
+    
+    Runs: `yarn install`
+  </Card>
+  <Card title="pnpm" icon="boxes-packing">
+    Detects `pnpm-lock.yaml`
+    
+    Runs: `pnpm install`
+  </Card>
+</CardGroup>
+
+Detection happens automatically by checking for lock files in the repository root. The detection order prioritizes `pnpm` → `yarn` → `npm`.
+
+## How It Works
+
+<Steps>
+  <Step title="Store Lock File Hash">
+    When you leave a branch, `gitsw` calculates a SHA256 hash of the lock file and stores it in the branch state:
+    
+    ```bash
+    # Leaving branch 'feature-old'
+    # Lock file: package-lock.json
+    # Hash: a8f3c2d1e4b5a6f7...
+    ```
+    
+    The hash is computed in `src/hooks.rs:62-70`:
+    
+    ```rust
+    pub fn get_file_hash(path: &Path) -> Result<String> {
+        let content = fs::read(path)?;
+        let mut hasher = Sha256::new();
+        hasher.update(&content);
+        let result = hasher.finalize();
+        Ok(format!("{:x}", result))
+    }
+    ```
+  </Step>
+  
+  <Step title="Detect Changes">
+    When you switch to a branch, `gitsw` compares the current lock file hash with the stored hash:
+    
+    ```rust
+    let should_install = match stored_hash {
+        Some(hash) => hash != &current_hash,  // Changed!
+        None => false,  // First visit, no baseline
+    };
+    ```
+    
+    If they differ, dependencies have changed.
+  </Step>
+  
+  <Step title="Prompt for Installation">
+    If changes are detected, you're prompted to install:
+    
+    ```bash
+    📦 Lock file changed. Run npm install? (Y/n)
+    ```
+    
+    Pressing Enter or typing `y` runs the installation.
+  </Step>
+  
+  <Step title="Run Installation">
+    The appropriate package manager command is executed:
+    
+    ```bash
+    Running npm install...
+    # [npm output]
+    ✓ Install completed.
+    ```
+    
+    The new lock file hash is saved for future comparisons.
+  </Step>
+</Steps>
+
+## Package Manager Detection
+
+The detection logic is implemented in `src/hooks.rs:48-60`:
+
+```rust
+pub fn detect_package_manager(workdir: &Path) -> Option<PackageManager> {
+    // Check in order of preference
+    let managers = [
+        PackageManager::Pnpm,
+        PackageManager::Yarn,
+        PackageManager::Npm,
+    ];
+    
+    managers
+        .into_iter()
+        .find(|pm| workdir.join(pm.lock_file()).exists())
+}
+```
+
+<Info>
+  If multiple lock files exist (e.g., both `yarn.lock` and `package-lock.json`), `pnpm` takes priority, followed by `yarn`, then `npm`.
+</Info>
+
+## Lock File Hashing
+
+Each package manager has a specific lock file:
+
+```rust
+impl PackageManager {
+    pub fn lock_file(&self) -> &'static str {
+        match self {
+            PackageManager::Npm => "package-lock.json",
+            PackageManager::Yarn => "yarn.lock",
+            PackageManager::Pnpm => "pnpm-lock.yaml",
+        }
+    }
+}
+```
+
+`gitsw` hashes the entire lock file content using SHA256. This ensures even small dependency updates are detected.
+
+### Why SHA256?
+
+- **Fast**: Efficiently handles large lock files
+- **Reliable**: Different content always produces different hashes
+- **Compact**: 64-character hex string stored per branch
+
+## Installation Process
+
+When you confirm installation, `gitsw` runs the appropriate command (`src/hooks.rs:84-95`):
+
+```rust
+pub fn run_install(pm: PackageManager, workdir: &Path) -> Result<bool> {
+    let mut child = Command::new(pm.install_command())
+        .args(pm.install_args())
+        .current_dir(workdir)
+        .stdout(Stdio::inherit())  // Show output
+        .stderr(Stdio::inherit())  // Show errors
+        .spawn()?;
+    
+    let status = child.wait()?;
+    Ok(status.success())
+}
+```
+
+The installation runs in the repository root with inherited stdout/stderr, so you see all output as if you ran the command manually.
+
+<Tabs>
+  <Tab title="npm">
+    ```bash
+    npm install
+    ```
+    
+    Installs dependencies based on `package-lock.json`.
+  </Tab>
+  
+  <Tab title="Yarn">
+    ```bash
+    yarn install
+    ```
+    
+    Installs dependencies based on `yarn.lock`.
+  </Tab>
+  
+  <Tab title="pnpm">
+    ```bash
+    pnpm install
+    ```
+    
+    Installs dependencies based on `pnpm-lock.yaml`.
+  </Tab>
+</Tabs>
+
+## When Installation is Triggered
+
+Installation prompts appear when:
+
+1. **Lock file has changed** between the stored hash and current hash
+2. **You're switching to a branch** (not when leaving)
+3. **A stored hash exists** for comparison
+
+You won't be prompted:
+
+- On your first visit to a branch (no baseline)
+- If the lock file hasn't changed
+- When using `--no-install` flag
+
+<Note>
+  The first time you switch to a branch with `gitsw`, it stores the lock file hash but doesn't prompt for installation. Subsequent switches will detect changes.
+</Note>
+
+## Disabling Auto-Install
+
+Skip dependency prompts with the `--no-install` flag:
+
+```bash
+gitsw feature-branch --no-install
+```
+
+Useful when:
+
+- You know dependencies haven't changed
+- You want to install manually later
+- You're switching branches quickly for reference
+
+## Installation Failures
+
+If the installation command fails (non-zero exit code):
+
+```bash
+❌ Install failed. Please run manually.
+```
+
+The lock file hash is still updated, so you won't be repeatedly prompted. Run the install command manually to fix the issue.
+
+<Warning>
+  Even if installation fails, `gitsw` updates the stored hash. This prevents endless prompts if there's a persistent installation issue.
+</Warning>
+
+## State Tracking
+
+Lock file hashes are stored per-branch in `.git/git-switch.json`:
+
+```json
+{
+  "branches": {
+    "feature-new-api": {
+      "stash_id": null,
+      "lock_file_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "last_visited": "2026-03-03T14:25:00Z"
+    },
+    "feature-old-api": {
+      "stash_id": null,
+      "lock_file_hash": "a8f3c2d1e4b5a6f7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1",
+      "last_visited": "2026-03-02T09:15:00Z"
+    }
+  }
+}
+```
+
+## Complete Flow Example
+
+Here's a complete workflow showing how package manager sync works:
+
+```bash
+# On branch 'main' with npm
+$ gitsw feature-upgrade-deps
+→ Switching to 'feature-upgrade-deps'...
+✓ Switched to 'feature-upgrade-deps'
+📦 Lock file changed. Run npm install? (Y/n) y
+→ Running npm install...
+
+added 5 packages, removed 2 packages, and changed 8 packages in 3s
+
+✓ Install completed.
+
+# Work on the branch...
+$ npm install lodash
+$ gitsw main
+→ Switching to 'main'...
+✓ Switched to 'main'
+
+# Return to feature branch
+$ gitsw feature-upgrade-deps
+→ Switching to 'feature-upgrade-deps'...
+✓ Switched to 'feature-upgrade-deps'
+📦 Lock file changed. Run npm install? (Y/n) y
+→ Running npm install...
+
+added 1 package in 1s
+
+✓ Install completed.
+```
+
+## Implementation in Main
+
+The package install logic is called after branch switching in `src/main.rs:532-567`:
+
+```rust
+fn handle_package_install(
+    workdir: &std::path::Path,
+    state: &mut StateManager,
+    branch: &str,
+) -> Result<()> {
+    let lock_info = hooks::get_lock_file_hash(workdir)?;
+    
+    if let Some((pm, current_hash)) = lock_info {
+        let stored_hash = state
+            .get_branch(branch)
+            .and_then(|s| s.lock_file_hash.as_ref());
+        
+        let should_install = match stored_hash {
+            Some(hash) => hash != &current_hash,
+            None => false,
+        };
+        
+        if should_install && prompt::prompt_install(pm.name())? {
+            println!("Running {} install...", pm.name());
+            
+            if hooks::run_install(pm, workdir)? {
+                println!("Install completed.");
+            } else {
+                eprintln!("Install failed. Please run manually.");
+            }
+        }
+        
+        state.set_lock_hash(branch, Some(current_hash));
+        state.save()?;
+    }
+    
+    Ok(())
+}
+```
+
+This runs at `src/main.rs:509` after the branch switch is complete.
+
+<Tip>
+  Use `gitsw --status` to see which package manager is detected in your current repository.
+</Tip>

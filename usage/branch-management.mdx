@@ -1,0 +1,334 @@
+---
+title: 'Branch Management'
+description: 'Create, delete, and list branches with gitsw'
+icon: 'code-branch'
+---
+
+## Creating Branches
+
+Create a new branch and switch to it:
+
+```bash
+gitsw -c feature-new
+gitsw --create bugfix/auth-error
+```
+
+The new branch is created from your current HEAD position.
+
+### Implementation Details
+
+From `src/main.rs:432-448`:
+
+```rust
+// Step 2: Create branch if needed, then switch
+if !branch_exists && create {
+    println!(
+        "{} Creating branch '{}'...",
+        "info:".blue().bold(),
+        target_branch.green()
+    );
+    repo.create_branch(target_branch)?;
+}
+
+println!(
+    "{} Switching to '{}'...",
+    "info:".blue().bold(),
+    target_branch.green()
+);
+
+repo.switch_branch(target_branch)?;
+```
+
+<Note>
+  Branch creation happens **after** stashing changes from your current branch, ensuring a clean switch.
+</Note>
+
+## Deleting Branches
+
+Delete a branch and clean up its associated stash:
+
+```bash
+gitsw -d old-feature
+gitsw --delete bugfix/completed
+```
+
+### Safety Checks
+
+gitsw performs several safety checks before deleting:
+
+<Steps>
+  <Step title="Cannot delete current branch">
+    You cannot delete the branch you're currently on
+    
+    ```bash
+    $ gitsw -d main  # while on main
+    error: Cannot delete the current branch
+    ```
+  </Step>
+  
+  <Step title="Branch must exist">
+    The branch must exist in your repository
+    
+    ```bash
+    $ gitsw -d nonexistent
+    error: Branch 'nonexistent' not found
+    ```
+  </Step>
+  
+  <Step title="Confirmation prompt">
+    You'll be asked to confirm the deletion
+    
+    ```bash
+    $ gitsw -d old-feature
+    ? Delete branch 'old-feature'? (y/N)
+    ```
+  </Step>
+</Steps>
+
+### Stash Cleanup
+
+If the branch has an associated stash, gitsw warns you and drops it:
+
+```bash
+$ gitsw -d feature-branch
+warning: Branch has a stash. It will be dropped.
+? Delete branch 'feature-branch'? (y/N) y
+done: Deleted branch 'feature-branch'
+```
+
+From `src/main.rs:268-300`:
+
+```rust
+// Check for stash and offer to clean up
+if let Some(branch_state) = state.get_branch(branch_name) {
+    if let Some(stash_id) = &branch_state.stash_id {
+        if let Ok(stash_oid) = Oid::from_str(stash_id) {
+            println!(
+                "{} Branch has a stash. It will be dropped.",
+                "warning:".yellow().bold()
+            );
+            if prompt::confirm_delete(branch_name)? {
+                let _ = repo.stash_drop(stash_oid);
+            } else {
+                println!("{} Delete aborted.", "info:".blue().bold());
+                return Ok(());
+            }
+        }
+    }
+}
+
+// Delete the branch
+repo.delete_branch(branch_name)?;
+state.remove_branch(branch_name);
+state.save()?;
+```
+
+## Listing Branches
+
+While gitsw doesn't have a dedicated list command, you can view branches in several ways:
+
+### Interactive Picker
+
+Run `gitsw` without arguments to see all branches:
+
+```bash
+gitsw
+```
+
+### List Branches with Stashes
+
+See which branches have stashed changes:
+
+```bash
+gitsw -l
+gitsw --list
+```
+
+Output:
+
+```bash
+Branches with stashed changes:
+
+  feature-auth (stash present, last visited 2 hours ago)
+* develop (stash present, last visited 5 min ago)
+  bugfix/login (stash present, last visited yesterday)
+```
+
+From `src/main.rs:154-204`:
+
+```rust
+fn list_stashes() -> Result<()> {
+    let mut repo = GitRepo::open()?;
+    let state = StateManager::load(repo.git_dir())?;
+
+    let current_branch = repo.get_current_branch()?;
+    let stashes = repo.list_stashes()?;
+    let branches_with_stashes = state.branches_with_stashes();
+
+    if branches_with_stashes.is_empty() {
+        println!("{}", "No branches with git-switch stashes found.".dimmed());
+        return Ok(());
+    }
+
+    println!("{}", "Branches with stashed changes:".bold());
+
+    for (branch_name, branch_state) in branches_with_stashes {
+        let is_current = branch_name == current_branch;
+        let marker = if is_current { "* " } else { "  " };
+        
+        let stash_exists = branch_state.stash_id.as_ref().is_some_and(|id| {
+            Oid::from_str(id)
+                .map(|oid| stashes.iter().any(|s| s.oid == oid))
+                .unwrap_or(false)
+        });
+        
+        let stash_status = if stash_exists {
+            "stash present".yellow()
+        } else {
+            "stash missing".red()
+        };
+        
+        println!(
+            "{}{} ({}, last visited {})",
+            marker, branch_name, stash_status, time_display
+        );
+    }
+}
+```
+
+### Recent Branches
+
+View your recently visited branches:
+
+```bash
+gitsw -r
+gitsw --recent
+```
+
+Output:
+
+```bash
+Recent branches:
+
+* [1] develop [stash] (5 min ago)
+  [2] main (2 hours ago)
+  [3] feature-auth [stash] (yesterday)
+  [4] bugfix/login (3 days ago)
+```
+
+<Note>
+  The `[stash]` indicator shows branches with uncommitted changes that were stashed by gitsw.
+</Note>
+
+## Branch Status
+
+Check the status of your current branch:
+
+```bash
+gitsw -s
+gitsw --status
+```
+
+Output:
+
+```bash
+Branch: feature-auth
+Changes: 2 modified, 1 untracked
+Stash: present
+Package manager: npm
+Tracking: origin/feature-auth
+```
+
+From `src/main.rs:110-152`:
+
+```rust
+fn show_status() -> Result<()> {
+    let mut repo = GitRepo::open()?;
+    let state = StateManager::load(repo.git_dir())?;
+    
+    let current_branch = repo.get_current_branch()?;
+    println!("{} {}", "Branch:".bold(), current_branch.green());
+
+    // Check for uncommitted changes
+    if repo.has_uncommitted_changes()? {
+        let summary = repo.get_changes_summary()?;
+        println!("{} {}", "Changes:".bold(), summary.yellow());
+    } else {
+        println!("{} {}", "Changes:".bold(), "clean".dimmed());
+    }
+
+    // Check for stash
+    if let Some(branch_state) = state.get_branch(&current_branch) {
+        if branch_state.stash_id.is_some() {
+            println!("{} {}", "Stash:".bold(), "present".yellow());
+        }
+    }
+
+    // Check remote tracking
+    if let Some(remote) = repo.get_tracking_remote(&current_branch)? {
+        println!("{} {}", "Tracking:".bold(), remote);
+    }
+}
+```
+
+## Terminal Examples
+
+<CodeGroup>
+
+```bash Create Branch
+$ gitsw -c feature-new
+info: Creating branch 'feature-new'...
+info: Switching to 'feature-new'...
+done: Switched to 'feature-new'
+```
+
+```bash Delete Branch
+$ gitsw -d old-feature
+? Delete branch 'old-feature'? (y/N) y
+done: Deleted branch 'old-feature'
+```
+
+```bash Delete with Stash
+$ gitsw -d feature-temp
+warning: Branch has a stash. It will be dropped.
+? Delete branch 'feature-temp'? (y/N) y
+done: Deleted branch 'feature-temp'
+```
+
+```bash List Stashes
+$ gitsw -l
+Branches with stashed changes:
+
+  feature-auth (stash present, last visited 2 hours ago)
+* develop (stash present, last visited just now)
+```
+
+```bash Recent Branches
+$ gitsw -r
+Recent branches:
+
+* [1] develop [stash] (just now)
+  [2] main (2 hours ago)
+  [3] feature-auth [stash] (yesterday)
+```
+
+```bash Status
+$ gitsw -s
+Branch: develop
+Changes: 2 modified
+Stash: present
+Package manager: npm
+Tracking: origin/develop
+```
+
+</CodeGroup>
+
+## Quick Reference
+
+| Command | Description |
+|---------|-------------|
+| `gitsw -c branch` | Create and switch to new branch |
+| `gitsw -d branch` | Delete branch (with stash cleanup) |
+| `gitsw -l` | List branches with stashes |
+| `gitsw -r` | Show recent branches |
+| `gitsw -s` | Show current branch status |

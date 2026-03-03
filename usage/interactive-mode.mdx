@@ -1,0 +1,137 @@
+---
+title: 'Interactive Mode'
+description: 'Use the fuzzy branch picker to quickly find and switch branches'
+icon: 'hand-pointer'
+---
+
+## Overview
+
+When you run `gitsw` without any arguments, it launches an interactive branch picker with fuzzy search. This is the fastest way to navigate between branches, especially in repositories with many branches.
+
+```bash
+gitsw
+```
+
+## How It Works
+
+The interactive picker displays all branches in a smart order:
+
+1. **Recent branches first** - Branches you've visited recently appear at the top (up to 20)
+2. **Remaining branches alphabetically** - All other branches are sorted alphabetically
+3. **Current branch marked** - Your current branch is marked with `(current)`
+
+<Note>
+  The picker remembers your branch history using state stored in `.git/git-switch.json`.
+</Note>
+
+## Navigation
+
+The fuzzy picker is powered by `dialoguer` and supports:
+
+<Steps>
+  <Step title="Type to filter">
+    Start typing any part of the branch name to filter the list in real-time
+  </Step>
+  
+  <Step title="Navigate with arrows">
+    Use `↑` and `↓` arrow keys to move through filtered results
+  </Step>
+  
+  <Step title="Select with Enter">
+    Press `Enter` to switch to the selected branch
+  </Step>
+  
+  <Step title="Cancel with Ctrl+C">
+    Press `Ctrl+C` or `Esc` to exit without switching
+  </Step>
+</Steps>
+
+## Real-World Example
+
+```bash
+$ gitsw
+? Select branch
+> main (current)
+  feature-auth
+  feature-api
+  develop
+  bugfix/user-login
+  hotfix/security-patch
+```
+
+Type "api" to filter:
+
+```bash
+$ gitsw
+? Select branch api
+> feature-api
+```
+
+## Implementation Details
+
+From `src/prompt.rs:22-74`, the interactive picker:
+
+```rust
+pub fn select_branch() -> Result<String> {
+    let repo = GitRepo::open()?;
+    let state = StateManager::load(repo.git_dir())?;
+    let all_branches = repo.list_branches()?;
+
+    // Get recent branches from state
+    let recent = state.recent_branches(20);
+    
+    // Sort branches: recent first, then alphabetically
+    let mut branches: Vec<String> = Vec::new();
+    
+    // Add recent branches first (that still exist)
+    for name in &recent_names {
+        if all_branches.contains(&name.to_string()) {
+            branches.push(name.to_string());
+        }
+    }
+    
+    let selection = FuzzySelect::with_theme(&ColorfulTheme::default())
+        .with_prompt("Select branch")
+        .items(&display_branches)
+        .default(0)
+        .max_length(15)
+        .interact()?;
+}
+```
+
+## Features
+
+<CardGroup cols={2}>
+  <Card title="Fuzzy Search" icon="magnifying-glass">
+    Type any substring to filter branches instantly
+  </Card>
+  
+  <Card title="Smart Ordering" icon="arrow-down-1-9">
+    Recent branches appear first for quick access
+  </Card>
+  
+  <Card title="Visual Feedback" icon="eye">
+    Current branch is clearly marked
+  </Card>
+  
+  <Card title="Fast Navigation" icon="keyboard">
+    Keyboard-driven for maximum efficiency
+  </Card>
+</CardGroup>
+
+## Tips
+
+- The picker shows up to 15 items at once (configurable via `max_length`)
+- Branch history persists across sessions
+- Deleted branches are automatically filtered from recent list
+- The default selection is always the first item (usually your most recent branch)
+
+## Combining with Other Options
+
+You can't combine interactive mode with a branch name, but you can use flags:
+
+```bash
+# These will still use interactive mode if no branch is specified
+gitsw -p    # Pick branch interactively, then pull
+gitsw -c    # Cannot be used in interactive mode (requires branch name)
+```

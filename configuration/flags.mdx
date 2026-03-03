@@ -1,0 +1,386 @@
+---
+title: Behavior Flags
+description: Detailed reference for flags that modify gitsw default behavior
+---
+
+## Overview
+
+Behavior flags allow you to control gitsw's automatic features like stash management and dependency installation. These flags are particularly useful in automation scripts or when you want to bypass interactive prompts.
+
+## --no-stash
+
+Disables automatic stash management when switching branches.
+
+### Default Behavior
+
+By default, when you switch branches with uncommitted changes, gitsw:
+
+1. Detects uncommitted changes in your working directory
+2. Prompts you to choose: stash changes, discard them, or abort
+3. If you choose to stash, creates a branch-specific stash with the message format `git-switch: <branch-name>`
+4. Stores the stash reference in `.git/git-switch.json` for later restoration
+
+### With --no-stash
+
+When you use the `--no-stash` flag:
+
+```bash
+gitsw main --no-stash
+```
+
+- Skips all stash prompts and automatic stashing
+- Attempts to switch branches with uncommitted changes in place
+- Displays a warning: `Skipping stash (--no-stash), uncommitted changes may prevent switch`
+- May fail if uncommitted changes conflict with the target branch
+
+### Use Cases
+
+**1. Clean working directory**
+
+When you know you have no uncommitted changes:
+
+```bash
+gitsw feature --no-stash    # Fast switch without stash checks
+```
+
+**2. Intentional change preservation**
+
+When you want to bring your uncommitted changes to the new branch:
+
+```bash
+gitsw -c hotfix --no-stash  # Create hotfix with current changes
+```
+
+**3. Automation scripts**
+
+In CI/CD or scripts where you control the working directory state:
+
+```bash
+#!/bin/bash
+# Deploy script - working directory is always clean
+gitsw production --no-stash --no-install
+```
+
+### Source Reference
+
+Defined in `src/main.rs:44-45`:
+
+```rust
+/// Skip automatic stash behavior
+#[arg(long)]
+no_stash: bool,
+```
+
+The flag is checked in `src/main.rs:389` within the `switch_branch` function:
+
+```rust
+if auto_stash && repo.has_uncommitted_changes()? {
+    // Prompt for stash action
+} else if !auto_stash && repo.has_uncommitted_changes()? {
+    println!("Skipping stash (--no-stash), uncommitted changes may prevent switch");
+}
+```
+
+## --no-install
+
+Disables automatic package installation prompts when lock files change.
+
+### Default Behavior
+
+By default, when you switch branches, gitsw:
+
+1. Detects supported lock files (package-lock.json, yarn.lock, pnpm-lock.yaml)
+2. Compares the current lock file hash with the stored hash for the target branch
+3. If changed, prompts you to run the appropriate package manager install command
+4. Stores the lock file hash after installation for future comparisons
+
+### With --no-install
+
+When you use the `--no-install` flag:
+
+```bash
+gitsw feature --no-install
+```
+
+- Skips all lock file change detection
+- Never prompts to run package manager install commands
+- Lock file hashes are still updated in state for accuracy
+- Dependencies may be out of sync with the new branch
+
+### Use Cases
+
+**1. Multiple rapid switches**
+
+When you're quickly switching between branches to check something:
+
+```bash
+gitsw main --no-install    # Quick peek at main
+gitsw -              # Return to previous branch
+```
+
+**2. Manual dependency management**
+
+When you prefer to control when dependencies are installed:
+
+```bash
+gitsw feature --no-install    # Switch first
+npm install                   # Install manually when ready
+```
+
+**3. CI/CD environments**
+
+When dependencies are managed separately:
+
+```bash
+# In CI pipeline
+gitsw staging --no-stash --no-install
+npm ci  # Clean install with exact versions
+```
+
+**4. Lock file conflicts**
+
+When you're working on lock file changes and don't want automatic installs:
+
+```bash
+gitsw -c fix/lock-file --no-install
+# Manually resolve lock file issues
+```
+
+### Supported Package Managers
+
+| Package Manager | Lock File | Install Command |
+|----------------|-----------|----------------|
+| npm | `package-lock.json` | `npm install` |
+| yarn | `yarn.lock` | `yarn install` |
+| pnpm | `pnpm-lock.yaml` | `pnpm install` |
+
+### Source Reference
+
+Defined in `src/main.rs:47-49`:
+
+```rust
+/// Skip automatic package install
+#[arg(long)]
+no_install: bool,
+```
+
+The flag controls the `handle_package_install` function call in `src/main.rs:508-510`:
+
+```rust
+if auto_install {
+    handle_package_install(&workdir, &mut state, target_branch)?;
+}
+```
+
+## -c, --create
+
+Creates a new branch if the target branch doesn't exist.
+
+### Default Behavior
+
+By default, switching to a non-existent branch fails:
+
+```bash
+$ gitsw new-feature
+error: Branch 'new-feature' not found. Use -c to create it.
+```
+
+### With -c/--create
+
+When you use the create flag:
+
+```bash
+gitsw -c new-feature
+```
+
+- Checks if the branch exists
+- If not, creates the branch from the current HEAD
+- Switches to the newly created branch
+- Works with other flags like `--no-stash` and `-p`
+
+### Use Cases
+
+**1. Starting new features**
+
+```bash
+gitsw -c feature/user-auth    # Create feature branch
+```
+
+**2. Creating hotfix branches**
+
+```bash
+gitsw main -p                 # Switch to main and pull
+gitsw -c hotfix/critical-bug  # Create hotfix from latest main
+```
+
+**3. Branching from current work**
+
+```bash
+# You have uncommitted changes you want on a new branch
+gitsw -c experimental --no-stash
+```
+
+### Source Reference
+
+Defined in `src/main.rs:51-53`:
+
+```rust
+/// Create branch if it doesn't exist
+#[arg(short = 'c', long)]
+create: bool,
+```
+
+Used in `src/main.rs:357-363`:
+
+```rust
+let branch_exists = repo.branch_exists(target_branch);
+if !branch_exists && !create {
+    return Err(anyhow!(
+        "Branch '{}' not found. Use -c to create it.",
+        target_branch
+    ));
+}
+```
+
+## -p, --pull
+
+Pulls the latest changes from the remote repository after switching branches.
+
+### Default Behavior
+
+By default, gitsw only switches branches without fetching or pulling:
+
+```bash
+gitsw main    # Switches to main but doesn't pull
+```
+
+### With -p/--pull
+
+When you use the pull flag:
+
+```bash
+gitsw main -p
+```
+
+- Switches to the target branch first
+- Attempts to pull changes from the tracking remote
+- Displays success or failure message
+- Continues with stash restoration and package install checks
+
+### Behavior Details
+
+- If the branch has no remote tracking branch, pull will fail with a message
+- Pull happens **after** branch switch and stash restoration
+- Does not abort the switch if pull fails (only displays warning)
+- Works when you're already on the target branch
+
+### Use Cases
+
+**1. Updating main/develop branches**
+
+```bash
+gitsw main -p              # Get latest main
+gitsw develop -p           # Get latest develop
+```
+
+**2. Syncing feature branches**
+
+```bash
+gitsw feature-api -p       # Get latest from remote feature branch
+```
+
+**3. Combining with remote tracking**
+
+```bash
+gitsw -t origin/release -p    # Track and pull in one command
+```
+
+**4. Already on branch but need to pull**
+
+```bash
+$ gitsw main -p
+info: Already on 'main'
+info: Pulling latest changes...
+done: Pull completed.
+```
+
+### Source Reference
+
+Defined in `src/main.rs:55-57`:
+
+```rust
+/// Pull latest changes after switching
+#[arg(short = 'p', long)]
+pull: bool,
+```
+
+Used in `src/main.rs:502-505`:
+
+```rust
+if pull {
+    do_pull(&mut repo)?;
+}
+```
+
+## Combining Flags
+
+Flags can be combined for powerful workflows:
+
+```bash
+# Create new branch, switch without stashing, skip install
+gitsw -c experimental --no-stash --no-install
+
+# Switch to main, pull latest, skip install prompt
+gitsw main -p --no-install
+
+# Track remote branch and pull immediately
+gitsw -t origin/staging -p
+
+# Create and pull (creates branch first, then attempts pull)
+gitsw -c feature -p
+```
+
+### Order of Operations
+
+When multiple flags are used, gitsw executes operations in this order:
+
+1. **Stash current branch** (unless `--no-stash`)
+2. **Create branch** (if `-c` and branch doesn't exist)
+3. **Switch to target branch**
+4. **Restore stash** (if one exists for the target branch)
+5. **Pull changes** (if `-p`)
+6. **Check lock files and prompt for install** (unless `--no-install`)
+
+## Best Practices
+
+### In Interactive Workflows
+
+Let gitsw manage stashes and installs automatically:
+
+```bash
+gitsw feature-branch    # Use defaults for safety
+```
+
+### In Automation
+
+Disable interactive features:
+
+```bash
+gitsw production --no-stash --no-install
+```
+
+### For Quick Peeks
+
+Skip time-consuming operations:
+
+```bash
+gitsw other-branch --no-install    # Just look, don't install
+```
+
+### For Clean Updates
+
+Pull and install together:
+
+```bash
+gitsw main -p    # Pull and install if lock file changed
+```

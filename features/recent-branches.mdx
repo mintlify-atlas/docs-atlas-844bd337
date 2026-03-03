@@ -1,0 +1,376 @@
+---
+title: 'Recent Branches'
+description: 'Track and quickly switch to your recently visited branches'
+icon: 'clock-rotate-left'
+---
+
+`gitsw` automatically tracks every branch you visit and when you last worked on it. This makes it easy to jump back to recent work without remembering exact branch names.
+
+## Viewing Recent Branches
+
+See your recently visited branches with the `-r` or `--recent` flag:
+
+```bash
+gitsw --recent
+```
+
+Output:
+
+```
+Recent branches:
+
+* [1] feature-ui [stash] (just now)
+  [2] feature-auth (2 hours ago)
+  [3] main (5 hours ago)
+  [4] bugfix-login [stash] (yesterday)
+  [5] feature-api (3 days ago)
+```
+
+<Info>
+  The asterisk (`*`) marks your current branch. Branches with stashed changes show a `[stash]` indicator.
+</Info>
+
+## How Tracking Works
+
+Every time you switch branches, `gitsw` updates the branch's `last_visited` timestamp:
+
+<Steps>
+  <Step title="Before Switching">
+    When leaving a branch, the timestamp is updated (`src/main.rs:384-386`):
+    
+    ```rust
+    // Update last visited for current branch before leaving
+    state.touch_branch(&current_branch);
+    state.save()?;
+    ```
+  </Step>
+  
+  <Step title="After Switching">
+    When entering a branch, the timestamp is updated again (`src/main.rs:512-514`):
+    
+    ```rust
+    // Update last visited for target branch
+    state.touch_branch(target_branch);
+    state.save()?;
+    ```
+  </Step>
+  
+  <Step title="State Persisted">
+    All branch visits are saved to `.git/git-switch.json`:
+    
+    ```json
+    {
+      "branches": {
+        "feature-ui": {
+          "stash_id": "a1b2c3d4...",
+          "lock_file_hash": null,
+          "last_visited": "2026-03-03T15:45:00Z"
+        }
+      }
+    }
+    ```
+  </Step>
+</Steps>
+
+## State Management
+
+Branch state is tracked in a JSON file at `.git/git-switch.json`. The structure is defined in `src/state.rs:10-28`:
+
+```rust
+pub struct BranchState {
+    /// The OID of the stash created when leaving this branch
+    pub stash_id: Option<String>,
+    /// SHA256 hash of the lock file when we last visited this branch
+    pub lock_file_hash: Option<String>,
+    /// Timestamp of last visit to this branch
+    pub last_visited: DateTime<Utc>,
+}
+
+impl Default for BranchState {
+    fn default() -> Self {
+        Self {
+            stash_id: None,
+            lock_file_hash: None,
+            last_visited: Utc::now(),
+        }
+    }
+}
+```
+
+### State Manager
+
+The `StateManager` handles loading, saving, and querying branch state (`src/state.rs:35-141`):
+
+```rust
+pub struct StateManager {
+    path: PathBuf,               // Path to .git/git-switch.json
+    data: StateData,             // In-memory state
+}
+
+impl StateManager {
+    pub fn load(git_dir: &Path) -> Result<Self> { /* ... */ }
+    pub fn save(&self) -> Result<()> { /* ... */ }
+    pub fn get_branch(&self, branch_name: &str) -> Option<&BranchState> { /* ... */ }
+    pub fn touch_branch(&mut self, branch_name: &str) { /* ... */ }
+}
+```
+
+## Retrieving Recent Branches
+
+The `recent_branches()` method returns branches sorted by last visited (`src/state.rs:118-130`):
+
+```rust
+pub fn recent_branches(&self, limit: usize) -> Vec<(&str, &BranchState)> {
+    let mut branches: Vec<_> = self
+        .data
+        .branches
+        .iter()
+        .map(|(name, state)| (name.as_str(), state))
+        .collect();
+    
+    branches.sort_by(|a, b| b.1.last_visited.cmp(&a.1.last_visited));
+    branches.truncate(limit);
+    branches
+}
+```
+
+By default, the `--recent` command shows up to 10 branches (`src/main.rs:211`).
+
+<Note>
+  Branches are sorted by most recently visited first. Only branches you've visited with `gitsw` appear in the list.
+</Note>
+
+## Display Format
+
+The `show_recent()` function formats the output (`src/main.rs:206-252`):
+
+```rust
+fn show_recent() -> Result<()> {
+    let repo = GitRepo::open()?;
+    let state = StateManager::load(repo.git_dir())?;
+    
+    let current_branch = repo.get_current_branch()?;
+    let mut recent = state.recent_branches(10);
+    
+    if recent.is_empty() {
+        println!("No recent branches tracked yet.");
+        return Ok(());
+    }
+    
+    println!("Recent branches:");
+    println!();
+    
+    // Sort by last visited (most recent first)
+    recent.sort_by(|a, b| b.1.last_visited.cmp(&a.1.last_visited));
+    
+    for (i, (branch_name, branch_state)) in recent.iter().enumerate() {
+        let is_current = *branch_name == current_branch;
+        let marker = if is_current { "* " } else { "  " };
+        
+        let branch_display = if is_current {
+            branch_name.green().bold()  // Highlighted
+        } else {
+            branch_name.normal()
+        };
+        
+        let time_display = format_time_ago(branch_state.last_visited);
+        let stash_indicator = if branch_state.stash_id.is_some() {
+            " [stash]".yellow()
+        } else {
+            "".normal()
+        };
+        
+        println!(
+            "{}{} {}{} ({})",
+            marker,
+            format!("[{}]", i + 1).dimmed(),
+            branch_display,
+            stash_indicator,
+            time_display.dimmed()
+        );
+    }
+    
+    Ok(())
+}
+```
+
+### Time Formatting
+
+The `format_time_ago()` function converts timestamps to human-readable formats (`src/main.rs:569-586`):
+
+```rust
+fn format_time_ago(time: chrono::DateTime<chrono::Utc>) -> String {
+    let duration = chrono::Utc::now().signed_duration_since(time);
+    let minutes = duration.num_minutes();
+    let hours = duration.num_hours();
+    let days = duration.num_days();
+    
+    if minutes < 1 {
+        "just now".to_string()
+    } else if minutes < 60 {
+        format!("{} min ago", minutes)
+    } else if hours < 24 {
+        format!("{} hour{} ago", hours, if hours == 1 { "" } else { "s" })
+    } else if days == 1 {
+        "yesterday".to_string()
+    } else {
+        format!("{} days ago", days)
+    }
+}
+```
+
+<Tip>
+  Time is stored in UTC but displayed relative to now ("2 hours ago"), making it easier to understand when you last worked on each branch.
+</Tip>
+
+## Color Coding
+
+The output uses colors for visual clarity:
+
+- **Green bold**: Current branch (with `*` marker)
+- **Yellow**: `[stash]` indicator for branches with stashed changes
+- **Dimmed**: Index numbers `[1]` and time ago `(2 hours ago)`
+- **Normal**: Other branch names
+
+## Stash Indicators
+
+Branches with active stashes show a `[stash]` indicator:
+
+```rust
+let stash_indicator = if branch_state.stash_id.is_some() {
+    " [stash]".yellow()
+} else {
+    "".normal()
+};
+```
+
+This helps you quickly see which branches have uncommitted work waiting.
+
+## Touching a Branch
+
+The `touch_branch()` method updates the `last_visited` timestamp (`src/state.rs:132-140`):
+
+```rust
+pub fn touch_branch(&mut self, branch_name: &str) {
+    let state = self
+        .data
+        .branches
+        .entry(branch_name.to_string())
+        .or_default();  // Creates if doesn't exist
+    state.last_visited = Utc::now();
+}
+```
+
+This is called:
+
+- When leaving a branch (before switch)
+- When entering a branch (after switch)
+
+<Info>
+  Even if you switch to the same branch (already on it), `touch_branch()` is called to update the timestamp.
+</Info>
+
+## Filtering and Limiting
+
+The `--recent` command shows up to 10 branches by default, but the `recent_branches()` method accepts a limit parameter:
+
+```rust
+let recent = state.recent_branches(10);  // Configurable
+```
+
+You could easily modify this to show more or fewer branches.
+
+## Persistence
+
+All branch state persists across sessions in `.git/git-switch.json`. This file is created automatically on first use and updated every time you switch branches.
+
+### Example State File
+
+```json
+{
+  "branches": {
+    "main": {
+      "stash_id": null,
+      "lock_file_hash": "a8f3c2d1...",
+      "last_visited": "2026-03-03T10:30:00Z"
+    },
+    "feature-auth": {
+      "stash_id": "e5f6a7b8...",
+      "lock_file_hash": "b9c0d1e2...",
+      "last_visited": "2026-03-03T13:15:00Z"
+    },
+    "feature-ui": {
+      "stash_id": null,
+      "lock_file_hash": "c1d2e3f4...",
+      "last_visited": "2026-03-03T15:45:00Z"
+    }
+  }
+}
+```
+
+<Warning>
+  The state file is stored in `.git/`, so it's local to your repository clone. If you clone the repo elsewhere, you'll start with a fresh state.
+</Warning>
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Quick Context Switching" icon="shuffle">
+    Rapidly switch between branches you've recently worked on without remembering exact names:
+    
+    ```bash
+    gitsw -r  # See recent branches
+    gitsw feature-auth  # Jump back
+    ```
+  </Card>
+  
+  <Card title="Review Workflow" icon="list-check">
+    Track which branches you've touched during a work session:
+    
+    ```bash
+    # After several switches
+    gitsw -r
+    # See your workflow history
+    ```
+  </Card>
+  
+  <Card title="Stash Management" icon="box-archive">
+    Quickly identify branches with stashed changes:
+    
+    ```bash
+    gitsw -r
+    # [stash] indicators show uncommitted work
+    ```
+  </Card>
+  
+  <Card title="Time Tracking" icon="clock">
+    See when you last worked on each branch to resume work:
+    
+    ```bash
+    # feature-api (3 days ago)
+    # Might need to merge main
+    ```
+  </Card>
+</CardGroup>
+
+## Combining with Other Features
+
+Recent branches work seamlessly with other `gitsw` features:
+
+```bash
+# View recent branches
+gitsw --recent
+
+# Switch and auto-stash
+gitsw feature-auth
+
+# View branches with stashes
+gitsw --list
+
+# Delete old branch (removes from recent list)
+gitsw --delete old-feature
+```
+
+<Tip>
+  Combine `--recent` with `--list` to get a complete picture of your working state: which branches you've visited and which have active stashes.
+</Tip>

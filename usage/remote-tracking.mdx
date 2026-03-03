@@ -1,0 +1,346 @@
+---
+title: 'Remote Tracking'
+description: 'Track and switch to remote branches with automatic setup'
+icon: 'cloud'
+---
+
+## Overview
+
+The `--track` flag lets you fetch a remote branch, create a local tracking branch, and switch to it in one command.
+
+```bash
+gitsw -t origin/feature-api
+gitsw --track origin/release-v2
+```
+
+This is equivalent to:
+
+```bash
+git fetch origin
+git checkout -b feature-api origin/feature-api
+```
+
+## How It Works
+
+<Steps>
+  <Step title="Parse remote/branch format">
+    The command expects the format `remote/branch` (e.g., `origin/feature-api`)
+  </Step>
+  
+  <Step title="Fetch from remote">
+    gitsw fetches the latest refs from the specified remote
+  </Step>
+  
+  <Step title="Check if local branch exists">
+    If a local branch with the same name already exists, gitsw switches to it
+  </Step>
+  
+  <Step title="Create tracking branch">
+    If the local branch doesn't exist, gitsw creates it tracking the remote
+  </Step>
+  
+  <Step title="Switch to the branch">
+    Finally, gitsw switches to the branch (with all normal stash/install features)
+  </Step>
+</Steps>
+
+## Implementation
+
+From `src/main.rs:303-344`:
+
+```rust
+fn track_remote(
+    remote_branch: &str,
+    auto_stash: bool,
+    auto_install: bool,
+    pull: bool,
+) -> Result<()> {
+    let repo = GitRepo::open()?;
+
+    // Parse remote/branch format
+    let parts: Vec<&str> = remote_branch.splitn(2, '/').collect();
+    if parts.len() != 2 {
+        return Err(anyhow!("Invalid format. Use: origin/branch-name"));
+    }
+
+    let remote = parts[0];
+    let branch = parts[1];
+
+    // Fetch from remote first
+    println!("{} Fetching from '{}'...", "info:".blue().bold(), remote);
+    repo.fetch(remote)?;
+
+    // Check if local branch already exists
+    if repo.branch_exists(branch) {
+        println!(
+            "{} Local branch '{}' already exists, switching to it",
+            "info:".blue().bold(),
+            branch
+        );
+        return switch_branch(branch, auto_stash, auto_install, false, pull);
+    }
+
+    // Create tracking branch
+    println!(
+        "{} Creating branch '{}' tracking '{}'...",
+        "info:".blue().bold(),
+        branch.green(),
+        remote_branch
+    );
+
+    repo.create_tracking_branch(branch, remote_branch)?;
+    switch_branch(branch, auto_stash, auto_install, false, pull)
+}
+```
+
+## Usage Examples
+
+### Track Remote Branch
+
+```bash
+gitsw -t origin/feature-api
+```
+
+Output:
+
+```bash
+info: Fetching from 'origin'...
+info: Creating branch 'feature-api' tracking 'origin/feature-api'...
+info: Switching to 'feature-api'...
+done: Switched to 'feature-api'
+```
+
+### Local Branch Already Exists
+
+If you already have a local branch with the same name:
+
+```bash
+$ gitsw -t origin/main
+info: Fetching from 'origin'...
+info: Local branch 'main' already exists, switching to it
+info: Switching to 'main'...
+done: Switched to 'main'
+```
+
+<Note>
+  gitsw doesn't override existing local branches. It simply switches to them after fetching.
+</Note>
+
+### Track and Pull
+
+Combine tracking with pulling:
+
+```bash
+gitsw -t origin/release-v2 -p
+```
+
+This fetches, creates the tracking branch, switches to it, and pulls the latest changes.
+
+## Format Requirements
+
+The `--track` flag requires the `remote/branch` format:
+
+```bash
+# Correct
+gitsw -t origin/feature
+gitsw -t upstream/main
+gitsw -t origin/bugfix/issue-123
+
+# Incorrect
+gitsw -t feature              # Missing remote
+gitsw -t origin feature       # Wrong separator
+gitsw -t origin/dev/feature   # Too many slashes (branches with / are supported)
+```
+
+From `src/main.rs:312-315`:
+
+```rust
+let parts: Vec<&str> = remote_branch.splitn(2, '/').collect();
+if parts.len() != 2 {
+    return Err(anyhow!("Invalid format. Use: origin/branch-name"));
+}
+```
+
+<Note>
+  Branch names can contain slashes (e.g., `origin/bugfix/login-error`). The `splitn(2, '/')` ensures only the first slash is used as the delimiter.
+</Note>
+
+## Combining with Other Flags
+
+The `--track` flag works with other gitsw flags:
+
+### Skip Auto-Stash
+
+```bash
+gitsw -t origin/feature --no-stash
+```
+
+### Skip Auto-Install
+
+```bash
+gitsw -t origin/feature --no-install
+```
+
+### Pull After Tracking
+
+```bash
+gitsw -t origin/feature -p
+```
+
+From `src/main.rs:92`:
+
+```rust
+if let Some(remote_branch) = args.track {
+    return track_remote(&remote_branch, !args.no_stash, !args.no_install, args.pull);
+}
+```
+
+## Workflow Example
+
+A typical workflow for tracking a remote feature branch:
+
+<Steps>
+  <Step title="Teammate pushes feature branch">
+    Your teammate creates and pushes `feature-api` to `origin`
+  </Step>
+  
+  <Step title="You track the branch">
+    ```bash
+    gitsw -t origin/feature-api
+    ```
+  </Step>
+  
+  <Step title="Work on the branch">
+    Make changes, commit, and push
+  </Step>
+  
+  <Step title="Switch away">
+    ```bash
+    gitsw main
+    ```
+    
+    Your changes are auto-stashed
+  </Step>
+  
+  <Step title="Return to feature branch">
+    ```bash
+    gitsw feature-api -p
+    ```
+    
+    Your stashed changes are restored and latest remote changes are pulled
+  </Step>
+</Steps>
+
+## Checking Remote Tracking
+
+See which remote a branch is tracking:
+
+```bash
+gitsw -s
+```
+
+Output:
+
+```bash
+Branch: feature-api
+Changes: clean
+Package manager: npm
+Tracking: origin/feature-api
+```
+
+From `src/main.rs:146-149`:
+
+```rust
+// Check remote tracking
+if let Some(remote) = repo.get_tracking_remote(&current_branch)? {
+    println!("{} {}", "Tracking:".bold(), remote);
+}
+```
+
+## Terminal Examples
+
+<CodeGroup>
+
+```bash Track Remote Branch
+$ gitsw -t origin/feature-api
+info: Fetching from 'origin'...
+info: Creating branch 'feature-api' tracking 'origin/feature-api'...
+info: Switching to 'feature-api'...
+done: Switched to 'feature-api'
+```
+
+```bash Branch Already Exists
+$ gitsw -t origin/main
+info: Fetching from 'origin'...
+info: Local branch 'main' already exists, switching to it
+info: Switching to 'main'...
+done: Switched to 'main'
+```
+
+```bash Track and Pull
+$ gitsw -t origin/release-v2 -p
+info: Fetching from 'origin'...
+info: Creating branch 'release-v2' tracking 'origin/release-v2'...
+info: Switching to 'release-v2'...
+done: Switched to 'release-v2'
+info: Pulling latest changes...
+done: Pull completed.
+```
+
+```bash Invalid Format
+$ gitsw -t feature
+error: Invalid format. Use: origin/branch-name
+```
+
+```bash With Uncommitted Changes
+$ gitsw -t origin/hotfix
+
+You have uncommitted changes (1 modified).
+What would you like to do?
+> Stash changes (recommended)
+
+info: Stashing changes on 'develop'...
+done: Changes stashed.
+info: Fetching from 'origin'...
+info: Creating branch 'hotfix' tracking 'origin/hotfix'...
+info: Switching to 'hotfix'...
+done: Switched to 'hotfix'
+```
+
+</CodeGroup>
+
+## Quick Reference
+
+| Command | Description |
+|---------|-------------|
+| `gitsw -t origin/branch` | Fetch and track remote branch |
+| `gitsw -t origin/branch -p` | Track and pull latest changes |
+| `gitsw -t origin/branch --no-stash` | Track without stashing |
+| `gitsw -s` | Show tracking information |
+
+## Error Handling
+
+### Remote Doesn't Exist
+
+```bash
+$ gitsw -t nonexistent/feature
+error: Remote 'nonexistent' not found
+```
+
+### Remote Branch Doesn't Exist
+
+```bash
+$ gitsw -t origin/nonexistent
+error: Remote branch 'origin/nonexistent' not found
+```
+
+### Invalid Format
+
+```bash
+$ gitsw -t just-a-branch
+error: Invalid format. Use: origin/branch-name
+```
+
+<Note>
+  All the standard gitsw features (auto-stash, auto-install, conflict handling) work when tracking remote branches.
+</Note>

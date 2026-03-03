@@ -1,0 +1,146 @@
+---
+title: 'gitsw [BRANCH]'
+description: 'Switch to a branch with automatic stash management'
+---
+
+## Syntax
+
+```bash
+gitsw [BRANCH] [OPTIONS]
+```
+
+<ParamField path="BRANCH" type="string" optional>
+  Target branch to switch to. If omitted, launches an interactive branch picker with fuzzy search.
+</ParamField>
+
+## Options
+
+<ParamField path="--no-stash" type="flag">
+  Skip automatic stash behavior. Uncommitted changes may prevent the switch if they conflict.
+</ParamField>
+
+<ParamField path="--no-install" type="flag">
+  Skip automatic package installation prompts when lock files change.
+</ParamField>
+
+<ParamField path="-c, --create" type="flag">
+  Create the branch if it doesn't exist. Without this flag, switching to a non-existent branch returns an error.
+</ParamField>
+
+<ParamField path="-p, --pull" type="flag">
+  Pull latest changes from remote after switching to the branch.
+</ParamField>
+
+## Behavior
+
+The `switch_branch` function executes the following steps:
+
+### 1. Pre-switch validation
+- Checks if the target branch exists (unless `-c` is specified)
+- If already on the target branch, displays info message and optionally pulls if `-p` is set
+- Updates the last visited timestamp for the current branch
+
+### 2. Handle uncommitted changes
+If auto-stash is enabled (default) and there are uncommitted changes:
+- Prompts user to **Stash**, **Discard**, or **Abort**
+- If stashing, saves with message: `git-switch: {branch_name}`
+- Stores stash OID and lock file hash in state
+- Displays: `info: Stashing changes on '{branch}'...`
+
+If `--no-stash` is set:
+- Displays warning: `warning: Skipping stash (--no-stash), uncommitted changes may prevent switch`
+
+### 3. Create and switch
+- Creates branch if `-c` flag is set and branch doesn't exist
+- Executes Git checkout to target branch
+- Displays: `done: Switched to '{branch}'`
+
+### 4. Restore stashed changes
+If a stash exists for the target branch:
+- Displays: `info: Found stashed changes for this branch`
+- Attempts to apply and drop the stash
+- On success: `done: Restored stashed changes.`
+- On conflict: Prompts to **Apply** (keep conflicts), **Skip**, or **Abort**
+
+### 5. Pull if requested
+If `-p` flag is set:
+- Executes `git pull` on the current branch
+- Displays: `info: Pulling latest changes...`
+- On success: `done: Pull completed.`
+
+### 6. Handle package installation
+If auto-install is enabled (default):
+- Compares current lock file hash with stored hash
+- If different, prompts to run package manager install
+- Supports npm, yarn, and pnpm
+- Updates stored lock file hash after install
+
+### 7. Update tracking
+- Updates last visited timestamp for target branch
+- Saves state to `.git/git-switch.json`
+
+## Examples
+
+### Interactive mode
+```bash
+gitsw
+```
+Launches fuzzy finder to select branch from all local branches.
+
+### Switch to existing branch
+```bash
+gitsw main
+```
+Switches to `main` branch. If uncommitted changes exist, prompts to stash.
+
+### Create and switch to new branch
+```bash
+gitsw -c feature-login
+```
+Creates `feature-login` if it doesn't exist, then switches to it.
+
+### Switch and pull
+```bash
+gitsw main -p
+```
+Switches to `main` and pulls latest changes from remote.
+
+### Switch without stashing
+```bash
+gitsw develop --no-stash
+```
+Switches to `develop` without automatically stashing changes. May fail if conflicts exist.
+
+### Create, switch, and pull
+```bash
+gitsw -c -p feature-api
+```
+Creates `feature-api`, switches to it, and pulls from remote.
+
+### Switch without install prompt
+```bash
+gitsw main --no-install
+```
+Switches to `main` but skips package installation prompt even if lock file changed.
+
+## Error Messages
+
+<ResponseField name="Branch not found">
+  ```
+  error: Branch '{branch}' not found. Use -c to create it.
+  ```
+  Returned when target branch doesn't exist and `-c` flag is not set.
+</ResponseField>
+
+<ResponseField name="Already on branch">
+  ```
+  info: Already on '{branch}'
+  ```
+  Displayed when attempting to switch to the current branch.
+</ResponseField>
+
+## Related Commands
+
+- [track](/reference/track) - Track and switch to a remote branch
+- [status](/reference/status) - View current branch status
+- [recent](/reference/recent) - View recently visited branches

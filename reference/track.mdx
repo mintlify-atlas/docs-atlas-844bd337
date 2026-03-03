@@ -1,0 +1,190 @@
+---
+title: 'gitsw --track'
+description: 'Track and switch to a remote branch'
+---
+
+## Syntax
+
+```bash
+gitsw -t <REMOTE/BRANCH>
+gitsw --track <REMOTE/BRANCH> [OPTIONS]
+```
+
+<ParamField path="REMOTE/BRANCH" type="string" required>
+  Remote branch reference in `remote/branch` format (e.g., `origin/feature-api`). Must contain exactly one forward slash.
+</ParamField>
+
+## Options
+
+<ParamField path="--no-stash" type="flag">
+  Skip automatic stash behavior when switching branches.
+</ParamField>
+
+<ParamField path="--no-install" type="flag">
+  Skip automatic package installation prompts.
+</ParamField>
+
+<ParamField path="-p, --pull" type="flag">
+  Pull latest changes from remote after switching to the branch.
+</ParamField>
+
+## Description
+
+The `--track` flag fetches from a remote repository, creates a local tracking branch, and switches to it. This is useful for checking out branches that only exist on the remote.
+
+## Implementation
+
+The `track_remote` function (src/main.rs:303-344) executes the following steps:
+
+### 1. Parse remote/branch format
+- Splits input on `/` separator
+- Expects exactly 2 parts: `remote` and `branch`
+- Returns error if format is invalid
+
+### 2. Fetch from remote
+- Displays: `info: Fetching from '{remote}'...`
+- Executes `git fetch {remote}`
+- Downloads all refs and objects from the remote
+
+### 3. Check local branch existence
+If local branch already exists:
+- Displays: `info: Local branch '{branch}' already exists, switching to it`
+- Calls `switch_branch()` with provided flags
+- Skips tracking branch creation
+
+### 4. Create tracking branch
+If local branch doesn't exist:
+- Displays: `info: Creating branch '{branch}' tracking '{remote/branch}'...`
+- Creates local branch pointing to remote ref
+- Sets up tracking relationship
+- Calls `switch_branch()` to complete the switch
+
+### 5. Switch and finalize
+Calls `switch_branch()` with:
+- `auto_stash`: Opposite of `--no-stash` flag
+- `auto_install`: Opposite of `--no-install` flag
+- `create`: Always `false` (already handled)
+- `pull`: Value of `-p` flag
+
+## Example Usage
+
+### Track feature branch
+```bash
+$ gitsw -t origin/feature-api
+info: Fetching from 'origin'...
+info: Creating branch 'feature-api' tracking 'origin/feature-api'...
+info: Switching to 'feature-api'...
+done: Switched to 'feature-api'
+```
+
+### Track and pull
+```bash
+$ gitsw -t origin/develop -p
+info: Fetching from 'origin'...
+info: Creating branch 'develop' tracking 'origin/develop'...
+info: Switching to 'develop'...
+done: Switched to 'develop'
+info: Pulling latest changes...
+done: Pull completed.
+```
+
+### Local branch already exists
+```bash
+$ gitsw -t origin/main
+info: Fetching from 'origin'...
+info: Local branch 'main' already exists, switching to it
+info: Switching to 'main'...
+done: Switched to 'main'
+```
+
+### Track without auto-stash
+```bash
+$ gitsw -t origin/feature-login --no-stash
+info: Fetching from 'origin'...
+info: Creating branch 'feature-login' tracking 'origin/feature-login'...
+warning: Skipping stash (--no-stash), uncommitted changes may prevent switch
+info: Switching to 'feature-login'...
+done: Switched to 'feature-login'
+```
+
+## Error Messages
+
+<ResponseField name="Invalid format">
+  ```
+  error: Invalid format. Use: origin/branch-name
+  ```
+  The remote/branch argument must contain exactly one `/` separator.
+</ResponseField>
+
+<ResponseField name="Fetch failed">
+  Git fetch errors are propagated directly. Common causes:
+  - Remote doesn't exist
+  - Network connectivity issues
+  - Authentication required
+</ResponseField>
+
+## Supported Remotes
+
+The command works with any Git remote configured in your repository:
+
+```bash
+# Common remotes
+gitsw -t origin/feature        # Default remote
+gitsw -t upstream/main         # Upstream remote
+gitsw -t fork/experimental     # Fork remote
+```
+
+Verify your remotes with:
+```bash
+git remote -v
+```
+
+## Branch Naming
+
+The local branch name is extracted from the remote reference:
+
+| Remote Reference | Local Branch Created |
+|-----------------|---------------------|
+| `origin/feature-api` | `feature-api` |
+| `upstream/main` | `main` |
+| `fork/develop` | `develop` |
+
+## Tracking Relationship
+
+After creating the tracking branch:
+- `git status` shows "Your branch is up to date with 'remote/branch'"
+- `git pull` automatically pulls from the tracked remote branch
+- `git push` automatically pushes to the tracked remote branch
+
+## Use Cases
+
+### Checkout colleague's branch
+```bash
+# After they push to remote
+git fetch
+gitsw -t origin/feature-auth
+```
+
+### Track upstream changes
+```bash
+# For forked repositories
+gitsw -t upstream/main -p
+```
+
+### Start work on remote feature
+```bash
+gitsw -t origin/sprint-24
+# Automatically creates local branch and switches to it
+```
+
+### Review pull request branch
+```bash
+# GitHub/GitLab branches
+gitsw -t origin/pr-123
+```
+
+## Related Commands
+
+- [switch](/reference/switch) - Called internally after tracking setup
+- [status](/reference/status) - View tracking information
+- [recent](/reference/recent) - Tracked branches appear in recent list

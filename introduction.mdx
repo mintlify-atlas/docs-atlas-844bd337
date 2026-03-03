@@ -1,0 +1,99 @@
+---
+title: Introduction
+description: A smart Git branch switcher with automatic stash management and dependency installation
+---
+
+# Welcome to gitsw
+
+gitsw is a contextual Git branch switcher that makes working with multiple branches effortless. It automatically manages your uncommitted changes, restores your workspace state, and keeps your dependencies in sync.
+
+<CardGroup cols={3}>
+  <Card title="Installation" icon="download" href="/installation">
+    Get started with gitsw using cargo, install script, or pre-built binaries
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Learn the basics and start switching branches in minutes
+  </Card>
+  <Card title="Key Features" icon="sparkles" href="#key-features">
+    Discover what makes gitsw powerful
+  </Card>
+</CardGroup>
+
+## What is gitsw?
+
+gitsw enhances the Git branch switching experience by automatically handling the tedious tasks developers face when moving between branches:
+
+- Stashing uncommitted changes when you leave a branch
+- Restoring those changes when you return
+- Detecting package manager changes and prompting for dependency installation
+- Providing an interactive fuzzy-search interface for branch selection
+
+## Key Features
+
+### Interactive Branch Picker
+
+Fuzzy search through all your branches with the most recently used ones displayed first. No need to remember exact branch names.
+
+```bash
+gitsw
+```
+
+### Automatic Stash Management
+
+When switching branches with uncommitted changes, gitsw automatically stashes them with a branch-specific identifier. When you return to that branch, your changes are automatically restored.
+
+```bash
+# Switch away with uncommitted changes - automatically stashed
+gitsw main
+
+# Switch back - changes automatically restored
+gitsw feature-auth
+```
+
+### Smart Dependency Sync
+
+Detects changes to lock files (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`) and prompts you to run the appropriate package manager install command.
+
+### Recent Branches Tracking
+
+Quickly access your most recently used branches with timestamps and stash indicators.
+
+```bash
+gitsw -r
+```
+
+### Remote Branch Tracking
+
+Easily fetch, checkout, and track remote branches in a single command.
+
+```bash
+gitsw -t origin/feature-api
+```
+
+### Branch Operations
+
+- Create new branches with `-c` flag
+- Pull latest changes after switching with `-p` flag
+- Delete branches with automatic stash cleanup
+- View current status including branch, changes, and stash state
+
+## How It Works
+
+gitsw maintains state in `.git/git-switch.json` within your repository to track:
+
+1. **Branch state**: Last visited time, stash ID, and lock file hash for each branch
+2. **On branch leave**: If you have uncommitted changes, gitsw stashes them with a branch-specific identifier
+3. **On branch switch**: Git checks out the target branch
+4. **On branch return**: If a stash exists for the branch, gitsw automatically applies and drops it
+5. **Lock file check**: Compares lock file hash with stored value and prompts for install if changed
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Install gitsw" icon="download" href="/installation">
+    Choose your preferred installation method
+  </Card>
+  <Card title="Quick Start Guide" icon="rocket" href="/quickstart">
+    Get up and running in minutes
+  </Card>
+</CardGroup>

@@ -1,0 +1,213 @@
+---
+title: 'Basic Commands'
+description: 'Switch branches by name with various options'
+icon: 'arrow-right-arrow-left'
+---
+
+## Switch to Branch
+
+The most basic operation is switching to an existing branch by name:
+
+```bash
+gitsw main
+gitsw feature-auth
+gitsw bugfix/login-error
+```
+
+If the branch doesn't exist, you'll get an error:
+
+```bash
+$ gitsw nonexistent
+error: Branch 'nonexistent' not found. Use -c to create it.
+```
+
+<Note>
+  From `src/main.rs:357-363`, gitsw checks if the branch exists before attempting to switch.
+</Note>
+
+## Create and Switch
+
+Create a new branch and switch to it in one command:
+
+```bash
+gitsw -c new-feature
+gitsw -c bugfix/issue-123
+```
+
+This is equivalent to:
+
+```bash
+git checkout -b new-feature
+```
+
+### How It Works
+
+<Steps>
+  <Step title="Check if branch exists">
+    gitsw first checks if the branch already exists (`src/main.rs:357`)
+  </Step>
+  
+  <Step title="Handle uncommitted changes">
+    If you have changes, you'll be prompted to stash or discard them
+  </Step>
+  
+  <Step title="Create the branch">
+    The new branch is created from your current HEAD (`src/main.rs:433-440`)
+  </Step>
+  
+  <Step title="Switch to it">
+    gitsw performs the checkout operation
+  </Step>
+</Steps>
+
+```rust
+// From src/main.rs:433-440
+if !branch_exists && create {
+    println!(
+        "{} Creating branch '{}'...",
+        "info:".blue().bold(),
+        target_branch.green()
+    );
+    repo.create_branch(target_branch)?;
+}
+```
+
+## Pull After Switch
+
+Switch to a branch and immediately pull the latest changes:
+
+```bash
+gitsw main -p
+gitsw develop --pull
+```
+
+This is useful when:
+- Updating your main/develop branch before creating a new feature branch
+- Syncing with remote changes after switching to a shared branch
+
+### Implementation
+
+From `src/main.rs:503-505` and `src/main.rs:519-530`:
+
+```rust
+// Step 4: Pull if requested
+if pull {
+    do_pull(&mut repo)?;
+}
+
+fn do_pull(repo: &mut GitRepo) -> Result<()> {
+    println!("{} Pulling latest changes...", "info:".blue().bold());
+    match repo.pull() {
+        Ok(()) => {
+            println!("{} Pull completed.", "done:".green().bold());
+        }
+        Err(e) => {
+            eprintln!("{} Pull failed: {}", "warning:".yellow().bold(), e);
+        }
+    }
+    Ok(())
+}
+```
+
+<Warning>
+  If the pull fails (e.g., due to conflicts), the switch still completes. You'll need to resolve conflicts manually.
+</Warning>
+
+## Combining Flags
+
+You can combine `-c` and `-p` flags:
+
+```bash
+gitsw -c feature-new -p    # Create branch and pull (pulls before switch)
+```
+
+## Already on Target Branch
+
+If you're already on the target branch, gitsw handles it gracefully:
+
+```bash
+$ gitsw main
+info: Already on 'main'
+```
+
+From `src/main.rs:368-380`:
+
+```rust
+// Already on target branch
+if current_branch == target_branch {
+    println!(
+        "{} Already on '{}'",
+        "info:".blue().bold(),
+        target_branch.green()
+    );
+
+    // Still pull if requested
+    if pull {
+        do_pull(&mut repo)?;
+    }
+    return Ok(());
+}
+```
+
+<Note>
+  Even if you're already on the branch, using `-p` will still pull the latest changes.
+</Note>
+
+## Terminal Examples
+
+<CodeGroup>
+
+```bash Basic Switch
+$ gitsw main
+info: Switching to 'main'...
+done: Switched to 'main'
+```
+
+```bash Create Branch
+$ gitsw -c feature-new
+info: Creating branch 'feature-new'...
+info: Switching to 'feature-new'...
+done: Switched to 'feature-new'
+```
+
+```bash Switch and Pull
+$ gitsw main -p
+info: Switching to 'main'...
+done: Switched to 'main'
+info: Pulling latest changes...
+done: Pull completed.
+```
+
+```bash With Uncommitted Changes
+$ gitsw develop
+
+You have uncommitted changes (2 modified, 1 untracked).
+What would you like to do?
+> Stash changes (recommended)
+  Discard changes (lose all modifications)
+  Abort switch
+```
+
+</CodeGroup>
+
+## Skip Auto-Stash
+
+By default, gitsw prompts you to stash uncommitted changes. Skip this with:
+
+```bash
+gitsw main --no-stash
+```
+
+<Warning>
+  Using `--no-stash` may cause the switch to fail if you have uncommitted changes that conflict with the target branch.
+</Warning>
+
+## Quick Reference
+
+| Command | Description |
+|---------|-------------|
+| `gitsw branch` | Switch to existing branch |
+| `gitsw -c branch` | Create and switch to new branch |
+| `gitsw branch -p` | Switch and pull latest changes |
+| `gitsw branch --no-stash` | Switch without stashing changes |
+| `gitsw -c branch -p` | Create, switch, and pull |
