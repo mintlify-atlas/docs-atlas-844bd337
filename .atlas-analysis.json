@@ -1,0 +1,94 @@
+{
+  "projectType": "cli-tool",
+  "projectName": "gitsw",
+  "projectDescription": "A smart Git branch switcher with automatic stash management and dependency installation",
+  "theme": "aspen",
+  "primaryColor": "#FF6B35",
+  "lightColor": "#FFB4A2",
+  "darkColor": "#D9534F",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Usage",
+            "pages": [
+              "usage/interactive-mode",
+              "usage/basic-commands",
+              "usage/branch-management",
+              "usage/stash-management",
+              "usage/remote-tracking"
+            ]
+          },
+          {
+            "group": "Features",
+            "pages": [
+              "features/auto-stash",
+              "features/package-manager-sync",
+              "features/recent-branches"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/options",
+              "configuration/flags"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "groups": [
+          {
+            "group": "Commands",
+            "pages": [
+              "reference/switch",
+              "reference/status",
+              "reference/list",
+              "reference/recent",
+              "reference/delete",
+              "reference/track"
+            ]
+          },
+          {
+            "group": "Development",
+            "pages": [
+              "development/architecture",
+              "development/contributing"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Interactive branch picker with fuzzy search",
+    "Automatic stash management on branch switch",
+    "Auto-unstash when returning to branches",
+    "Package manager dependency sync detection",
+    "Recent branches tracking",
+    "Remote branch tracking support"
+  ],
+  "publicApiSurface": [
+    "gitsw [BRANCH] - Switch to branch",
+    "gitsw -l, --list - List branches with stashes",
+    "gitsw -r, --recent - Show recent branches",
+    "gitsw -s, --status - Show current status",
+    "gitsw -d, --delete <BRANCH> - Delete branch",
+    "gitsw -t, --track <REMOTE/BRANCH> - Track remote branch",
+    "gitsw -c, --create - Create branch if doesn't exist",
+    "gitsw -p, --pull - Pull after switching",
+    "gitsw --no-stash - Skip automatic stash",
+    "gitsw --no-install - Skip automatic package install"
+  ]
+}
